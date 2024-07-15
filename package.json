@@ -1,0 +1,21 @@
+{
+  "name": "jman-mod-installer",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "tauri-dev": "tauri dev",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^1",
+    "vite": "^5.3.1",
+    "typescript": "^5.2.2"
+  }
+}
