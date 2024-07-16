@@ -2,37 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="stylesheet" href="/src/styles.css" />
+<!--    <link rel="stylesheet" href="/src/styles.css" />-->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Tauri App</title>
-    <script type="module" src="/src/main.ts" defer></script>
   </head>
 
   <body>
-    <div>
-      <script>
-        async function getName(){
-          const {invoke} = window.__TAURI__.tauri
-          const {appDataDir,dataDir,homeDir} = window.__TAURI__.path
-          const {readDir,Dir} = window.__TAURI__.fs
-          const {type} = window.__TAURI__.os
-          console.log(await homeDir())
-          console.log(await readDir(await homeDir()))
-          console.log(await type())
-          // console.log(await readDir("."))
-          let name = document.getElementById('greet-name').value
-          invoke('greet', {name}).then((res)=>{
-            document.getElementById('greet-output').innerText=res;
-          })
-        }
-      </script>
-      <h1>Jeremy Mod installer!</h1>
-      <h2>My girlfriend is a hottie</h2>
-      <button onclick="getName()">
-        Click Me!
-      </button>
-      <input type="text" id="greet-name"/>
-      <p id="greet-output"></p>
-    </div>
+
+    <div id="root"></div>
+    <script type="module" src="src/index.jsx"></script>
   </body>
 </html>
