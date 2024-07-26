@@ -1,10 +1,10 @@
 import {useQuery} from "react-query";
 import {dataDir, homeDir} from "@tauri-apps/api/path";
-import {readDir,exists} from "@tauri-apps/api/fs";
-import ModsFolder from "./ModsFolder.tsx";
+import {readDir, exists, FileEntry} from "@tauri-apps/api/fs";
+import ProfileInfo from "../ProfileInfo.tsx";
 
 export default function MinecraftFinder({osType}:{osType:string}){
-    const pathInfo = useQuery("defaultPath",async () => {
+    const pathInfo = useQuery("defaultPath",async ():Promise<{defaultPath:string,readPath:FileEntry[],minecraftExists:boolean}> => {
         let defaultPath = "";
         switch(osType){
             case('Linux'):
@@ -18,10 +18,10 @@ export default function MinecraftFinder({osType}:{osType:string}){
                 defaultPath = await dataDir()
                 break
         }
-        let readPath = await readDir(defaultPath)
-        let minecraftExists = await exists(defaultPath+"/.minecraft")
-        return({defaultPath,readPath,minecraftExists})
-    })
+        let readPath = await readDir(defaultPath+".minecraft")
+        let minecraftExists = await exists(defaultPath+".minecraft")
+        return({defaultPath:defaultPath+".minecraft",readPath,minecraftExists})
+    },{initialData:{defaultPath:"",readPath:[],minecraftExists:false}})
 
     return(
         <>
@@ -31,11 +31,17 @@ export default function MinecraftFinder({osType}:{osType:string}){
                 pathInfo.isError?
                     <>Something went wrong!</>
                     :
-
+                    pathInfo.data?
                     <>
-                        Minecraft file found at {pathInfo.data.defaultPath}
-                        <ModsFolder path={pathInfo.data.defaultPath}/>
+                        {/*Minecraft file found at {pathInfo.data.defaultPath}*/}
+                        {pathInfo.data.defaultPath&&
+                            <ProfileInfo path={pathInfo.data.defaultPath}/>
+                        }
+                        {/*{pathInfo.data.minecraftExists&&<p>it exists!</p>}*/}
+                        {/*<ModsFolder path={pathInfo.data.defaultPath}/>*/}
                     </>
+                        :
+                        <>No Data!?</>
             }
         </>
     )
