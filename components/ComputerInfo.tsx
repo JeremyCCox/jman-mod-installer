@@ -13,7 +13,9 @@ export default function ComputerInfo(){
                 osInfo.error?
                     <>Could not verify operating system!</>
                     :
-                    osInfo.data
+                    <div className={'w-full h-8 flex justify-evenly'}>
+                        {osInfo.data}
+                    </div>
             }
         </>
     )

@@ -46,7 +46,7 @@
         "icons/icon.icns",
         "icons/icon.ico"
       ],
-      "identifier": "com.tauri.dev",
+      "identifier": "ca.jcox.jman-mod-installer",
       "longDescription": "",
       "macOS": {
         "entitlements": null,

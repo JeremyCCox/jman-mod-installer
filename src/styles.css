@@ -71,7 +71,7 @@ button {
   font-weight: 500;
   font-family: inherit;
   color: #0f0f0f;
-  background-color: #ffffff;
+  background-color: #b6e6f3;
   transition: border-color 0.25s;
   box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
 }
@@ -82,6 +82,7 @@ button {
 
 button:hover {
   border-color: #396cd8;
+  background-color: #747bff;
 }
 button:active {
   border-color: #396cd8;
