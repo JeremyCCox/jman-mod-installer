@@ -4,6 +4,7 @@ import {readDir, exists, FileEntry} from "@tauri-apps/api/fs";
 import ProfileInfo from "../ProfileInfo.tsx";
 import {invoke} from "@tauri-apps/api";
 import RemoteInfo from "../RemoteInfo.tsx";
+import MinecraftVersions from "../MinecraftVersions.tsx";
 
 export default function MinecraftFinder({osType}:{osType:string}){
     // @ts-ignore
@@ -53,6 +54,7 @@ export default function MinecraftFinder({osType}:{osType:string}){
                                 </div>
                                 <RemoteInfo path={pathInfo.data.defaultPath}/>
                                 <ProfileInfo path={pathInfo.data.defaultPath}/>
+                                <MinecraftVersions path={pathInfo.data.defaultPath}/>
                             </>
                         }
                         {/*{pathInfo.data.minecraftExists&&<p>it exists!</p>}*/}
