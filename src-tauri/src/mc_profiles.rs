@@ -1,12 +1,16 @@
 use std::{env, fs, io};
 use std::collections::HashMap;
-use std::fmt::Error;
+use std::fmt::{Error, Formatter};
 use std::fs::File;
 use std::io::{Write};
+use std::net::TcpStream;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::ptr::read;
 use chrono::{Utc};
 use serde::{Deserialize, Serialize};
+use ssh2::{Session, Sftp};
+use log::error;
 
 
 pub fn list_profiles_mods(profile_path:&PathBuf) -> Result<Vec<PathBuf>,io::Error> {
@@ -45,7 +49,7 @@ impl LauncherProfiles{
     pub fn from_file(base_path: &PathBuf) ->Self{
         let file = File::open(base_path.join("launcher_profiles.json")).expect("Could not open launcher_profiles.json");
         // fs::rename(base_path.join("launcher_profiles.json"),base_path.join("launcher_profiles-copy.json")).expect("Could not store launcher_profiles.json into launcher_profiles.json");
-        let mut launcher_profiles: LauncherProfiles = (serde_json::from_reader(&file).expect("Could not read launcher_profiles.json"));
+        let mut launcher_profiles: LauncherProfiles = serde_json::from_reader(&file).expect("Could not read launcher_profiles.json");
         // fs::rename(base_path.join("launcher_profiles-copy.json"),base_path.join("launcher_profiles.json")).expect("Could not restore launcher_profiles.json from copy ");
         launcher_profiles
     }
@@ -129,7 +133,7 @@ impl LauncherProfile{
         };
         launcher_profile
     }
-    pub fn save_file(& self, profile_path:&PathBuf){
+    pub fn save_file(&self, profile_path:&PathBuf){
         let launcher_json = serde_json::to_string(self).unwrap();
         let mut launcher_file = File::create(&profile_path.join("launcher_profile.json")).unwrap();
         launcher_file.write(launcher_json.as_ref()).expect("TODO: panic message");
@@ -140,25 +144,113 @@ impl LauncherProfile{
 #[derive(Serialize,Deserialize,Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct InstallerConfig{
-    default_game_dir:String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_game_dir:Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sftp_server:Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sftp_port:Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sftp_username:Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sftp_password:Option<String>,
 }
 impl Default for InstallerConfig{
     fn default() -> Self {
         Self{
-            default_game_dir: "".to_string(),
+            default_game_dir: None,
+            sftp_server: None,
+            sftp_port: None,
+            sftp_username: None,
+            sftp_password: None,
         }
     }
 }
+
 impl InstallerConfig{
     pub fn new()->Self{
         Self::default()
     }
-    pub fn save_config(&self){
+
+    #[cfg(test)]
+    pub fn test_new()->Self{
+        Self{
+            default_game_dir: Some("test\\.minecraft".parse().unwrap()),
+            sftp_server: Some("bigbrainedgamers.com".parse().unwrap()),
+            sftp_port: Some("2222".parse().unwrap()),
+            sftp_username: Some("headless".parse().unwrap()),
+            sftp_password: Some("pword".parse().unwrap()),
+        }
+    }
+    pub fn from_game_dir(game_dir:&str)->Self{
+        Self{
+            default_game_dir:Some(game_dir.to_string()),
+            ..Self::default()
+        }
+    }
+    pub fn save_config(&self)->Result<(),io::Error>{
         let app_dir = tauri::api::path::data_dir().unwrap().join("jman-mod-installer");
         let _ = fs::create_dir(&app_dir);
         let json = serde_json::to_string_pretty(&self).unwrap();
         let mut file = File::create(&app_dir.join("config.json")).expect("Could not create config.json");
-        file.write(json.as_ref()).unwrap();
+        file.write(json.as_ref()).expect("Could not save config.json");
+        Ok(())
+    }
+    pub fn open()->Self{
+        let app_dir = tauri::api::path::data_dir().unwrap().join("jman-mod-installer");
+        match File::open(app_dir.join("config.json")){
+            Ok(file) => {
+                let read_config:InstallerConfig = serde_json::from_reader(file).expect("Could not read from config.json");
+                read_config
+            },
+            Err(_) => {
+                Self::default()
+            }
+        }
+    }
+    pub fn sftp_connect(&self)->Result<Sftp,ssh2::Error>{
+        let address = format!("{}:{}",&self.sftp_server.clone().unwrap(),&self.sftp_port.clone().unwrap());
+        let tcp = TcpStream::connect(address).expect("Could not establish tcp stream!");
+
+        let mut sess = Session::new().expect("Could not open session!");
+
+        sess.set_tcp_stream(tcp);
+
+        for _try in 1..=4{
+            match sess.handshake(){
+                Ok(()) => {
+                    break
+                }
+                Err(error) => {
+                    if _try < 4{
+                        continue
+                    }else{
+                        return Err(error)
+                    }
+                }
+            }
+        }
+        sess.userauth_password(&self.sftp_username.clone().unwrap(), &self.sftp_password.clone().unwrap()).expect("Auth failed");
+        match sess.sftp() {
+            Ok(sftp) => Ok(sftp),
+            Err(error) => Err(error)
+        }
+    }
+    pub fn sftp_safe_connect(&self)->Result<Sftp,ssh2::Error>{
+        let mut i:usize  = 0;
+        return loop{
+            match self.sftp_connect() {
+                Ok(sftp) => {
+                    break Ok(sftp)
+                }
+                Err(err) => {
+                    i += 1;
+                    if i == 4{
+                        break Err(err)
+                    }
+                }
+            }
+        }
     }
 }
 pub fn create_profile(base_path:&PathBuf,profile_name:&str)-> Result<(),io::Error>{
@@ -246,6 +338,16 @@ mod tests{
         let meta_data = fs::metadata(base_path.join("profiles").join(profile_name)).unwrap();
         assert!(meta_data.is_dir())
     }
+    #[test]
+    fn test_connect_profile(){
+        let mut installer_config = InstallerConfig::new();
+        installer_config.sftp_username = Some("headless".parse().unwrap());
+        installer_config.sftp_password = Some("pword".parse().unwrap());
+        installer_config.sftp_server = Some("bigbrainedgamers.com".parse().unwrap());
+        installer_config.sftp_port = Some("2222".parse().unwrap());
+        let sftp_result = installer_config.sftp_connect();
+        assert!(sftp_result.is_ok());
+    }
 
     // #[test]
     // fn test_create_launcher_profile(){
@@ -273,7 +375,11 @@ mod tests{
     #[test]
     fn test_create_config(){
         let installer_config = InstallerConfig::new();
-        installer_config.save_config();
-
+        assert!(installer_config.save_config().is_ok());
+    }
+    #[test]
+    fn test_read_config(){
+        let installer_config = InstallerConfig::open();
+        assert!(installer_config.default_game_dir.eq(&Some("".parse().unwrap())));
     }
 }

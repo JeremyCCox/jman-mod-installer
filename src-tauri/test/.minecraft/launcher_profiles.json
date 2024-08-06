@@ -1,15 +1,78 @@
 {
   "profiles": {
+    "034b5347f2459ecd48e9ce69badd0683": {
+      "created": "1970-01-01T00:00:00.000Z",
+      "icon": "Dirt",
+      "lastVersionId": "latest-snapshot",
+      "name": ""
+    },
+    "fabric-loader-1.20.1": {
+      "created": "2024-07-17T07:39:51.000Z",
+      "gameDir": "C:\\Users\\Jeremy\\AppData\\Roaming\\.minecraft\\profiles\\fabric-1.20.1",
+      "icon": "Enchanting_Table",
+      "lastVersionId": "fabric-loader-0.15.11-1.20.1",
+      "name": "fabric-loader-1.20.1"
+    },
+    "1073bbd5b1029579cad88808acb90bea": {
+      "created": "1970-01-02T00:00:00.000Z",
+      "icon": "Grass",
+      "lastVersionId": "latest-release",
+      "name": ""
+    },
     "9b6f7f3e218eb880d74a3b6a0388b621": {
       "created": "1970-01-01T00:00:00.000Z",
       "icon": "Dirt",
       "lastVersionId": "latest-snapshot",
       "name": ""
     },
+    "8e3f1c5e9af387c5221c008e5b5b1a8a": {
+      "created": "1970-01-02T00:00:00.000Z",
+      "icon": "Grass",
+      "lastVersionId": "latest-release",
+      "name": ""
+    },
+    "new_profile": {
+      "created": "2024-08-06T21:41:58Z",
+      "gameDir": "test/.minecraft\\profiles\\new_profile",
+      "icon": "Enchanting_Table",
+      "lastVersionId": "fabric-loader-0.15.11-1.20.1",
+      "name": "new_profile"
+    },
+    "9a65f3a2ebf38f04492768134431c527": {
+      "created": "2024-07-28T19:22:12.810Z",
+      "gameDir": "C:\\Users\\Jeremy\\AppData\\Roaming\\.minecraft\\profiles\\jman_modpack",
+      "icon": "Furnace",
+      "lastVersionId": "fabric-loader-0.15.11-1.20.1",
+      "name": "jman_modpack"
+    },
+    "fabric-loader-1.21": {
+      "created": "2024-07-12T00:01:17.000Z",
+      "icon": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACABAMAAAAxEHz4AAAAGFBMVEUAAAA4NCrb0LTGvKW8spyAem2uppSakn5SsnMLAAAAAXRSTlMAQObYZgAAAJ5JREFUaIHt1MENgCAMRmFWYAVXcAVXcAVXcH3bhCYNkYjcKO8dSf7v1JASUWdZAlgb0PEmDSMAYYBdGkYApgf8ER3SbwRgesAf0BACMD1gB6S9IbkEEBfwY49oNj4lgLhA64C0o9R9RABTAvp4SX5kB2TA5y8EEAK4pRrxB9QcA4QBWkj3GCAMUCO/xwBhAI/kEsCagCHDY4AwAC3VA6t4zTAMj0OJAAAAAElFTkSuQmCC",
+      "lastVersionId": "fabric-loader-0.15.11-1.21",
+      "name": "fabric-loader-1.21"
+    },
     "test_profile": {
       "created": "2024-07-30T07:01:24Z",
       "gameDir": "test\\.minecraft\\profiles\\test_profile",
       "name": "test_profile"
+    },
+    "ef34309c9e4be5067c825c8141efa171": {
+      "created": "1970-01-02T00:00:00.000Z",
+      "icon": "Grass",
+      "lastVersionId": "latest-release",
+      "name": ""
+    },
+    "fabric-1.20.1": {
+      "created": "2024-07-28T02:22:46.000Z",
+      "gameDir": "C:\\Users\\Jeremy\\AppData\\Roaming\\.minecraft\\profiles\\fabric-1.20.1",
+      "lastVersionId": "fabric-loader-0.15.11-1.20.1",
+      "name": "fabric-1.20.1"
+    },
+    "eb3abceea346e5371de4a11151840dc0": {
+      "created": "1970-01-01T00:00:00.000Z",
+      "icon": "Dirt",
+      "lastVersionId": "latest-snapshot",
+      "name": ""
     },
     "68f288c500b862d75bf8d65ca02728b2": {
       "created": "2024-06-10T01:38:23.928Z",
@@ -23,79 +86,17 @@
       "lastVersionId": "1.20.1-forge-47.2.4",
       "name": "forge"
     },
-    "jman_modpack": {
-      "created": "2024-07-28T20:15:42.000Z",
-      "gameDir": "C:\\Users\\Jeremy\\AppData\\Roaming\\.minecraft\\profiles\\jman_modpack",
-      "lastVersionId": "fabric-loader-0.15.11-1.20.1",
-      "name": "jman_modpack"
-    },
-    "034b5347f2459ecd48e9ce69badd0683": {
-      "created": "1970-01-01T00:00:00.000Z",
-      "icon": "Dirt",
-      "lastVersionId": "latest-snapshot",
-      "name": ""
-    },
-    "8e3f1c5e9af387c5221c008e5b5b1a8a": {
-      "created": "1970-01-02T00:00:00.000Z",
-      "icon": "Grass",
-      "lastVersionId": "latest-release",
-      "name": ""
-    },
-    "fabric-loader-1.20.1": {
-      "created": "2024-07-17T07:39:51.000Z",
-      "gameDir": "C:\\Users\\Jeremy\\AppData\\Roaming\\.minecraft\\profiles\\fabric-1.20.1",
-      "icon": "Enchanting_Table",
-      "lastVersionId": "fabric-loader-0.15.11-1.20.1",
-      "name": "fabric-loader-1.20.1"
-    },
-    "eb3abceea346e5371de4a11151840dc0": {
-      "created": "1970-01-01T00:00:00.000Z",
-      "icon": "Dirt",
-      "lastVersionId": "latest-snapshot",
-      "name": ""
-    },
-    "9a65f3a2ebf38f04492768134431c527": {
-      "created": "2024-07-28T19:22:12.810Z",
-      "gameDir": "C:\\Users\\Jeremy\\AppData\\Roaming\\.minecraft\\profiles\\jman_modpack",
-      "icon": "Furnace",
-      "lastVersionId": "fabric-loader-0.15.11-1.20.1",
-      "name": "jman_modpack"
-    },
-    "1073bbd5b1029579cad88808acb90bea": {
-      "created": "1970-01-02T00:00:00.000Z",
-      "icon": "Grass",
-      "lastVersionId": "latest-release",
-      "name": ""
-    },
-    "fabric-1.20.1": {
-      "created": "2024-07-28T02:22:46.000Z",
-      "gameDir": "C:\\Users\\Jeremy\\AppData\\Roaming\\.minecraft\\profiles\\fabric-1.20.1",
-      "lastVersionId": "fabric-loader-0.15.11-1.20.1",
-      "name": "fabric-1.20.1"
-    },
-    "fabric-loader-1.21": {
-      "created": "2024-07-12T00:01:17.000Z",
-      "icon": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACABAMAAAAxEHz4AAAAGFBMVEUAAAA4NCrb0LTGvKW8spyAem2uppSakn5SsnMLAAAAAXRSTlMAQObYZgAAAJ5JREFUaIHt1MENgCAMRmFWYAVXcAVXcAVXcH3bhCYNkYjcKO8dSf7v1JASUWdZAlgb0PEmDSMAYYBdGkYApgf8ER3SbwRgesAf0BACMD1gB6S9IbkEEBfwY49oNj4lgLhA64C0o9R9RABTAvp4SX5kB2TA5y8EEAK4pRrxB9QcA4QBWkj3GCAMUCO/xwBhAI/kEsCagCHDY4AwAC3VA6t4zTAMj0OJAAAAAElFTkSuQmCC",
-      "lastVersionId": "fabric-loader-0.15.11-1.21",
-      "name": "fabric-loader-1.21"
-    },
     "fabric-loader-1.20.6": {
       "created": "2024-07-12T00:01:25.000Z",
       "icon": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACABAMAAAAxEHz4AAAAGFBMVEUAAAA4NCrb0LTGvKW8spyAem2uppSakn5SsnMLAAAAAXRSTlMAQObYZgAAAJ5JREFUaIHt1MENgCAMRmFWYAVXcAVXcAVXcH3bhCYNkYjcKO8dSf7v1JASUWdZAlgb0PEmDSMAYYBdGkYApgf8ER3SbwRgesAf0BACMD1gB6S9IbkEEBfwY49oNj4lgLhA64C0o9R9RABTAvp4SX5kB2TA5y8EEAK4pRrxB9QcA4QBWkj3GCAMUCO/xwBhAI/kEsCagCHDY4AwAC3VA6t4zTAMj0OJAAAAAElFTkSuQmCC",
       "lastVersionId": "fabric-loader-0.15.11-1.20.6",
       "name": "fabric-loader-1.20.6"
     },
-    "new_profile": {
-      "created": "2024-07-30T07:01:32Z",
-      "gameDir": "test/.minecraft\\profiles\\new_profile",
+    "jman_modpack": {
+      "created": "2024-07-28T20:15:42.000Z",
+      "gameDir": "C:\\Users\\Jeremy\\AppData\\Roaming\\.minecraft\\profiles\\jman_modpack",
       "lastVersionId": "fabric-loader-0.15.11-1.20.1",
-      "name": "new_profile"
-    },
-    "ef34309c9e4be5067c825c8141efa171": {
-      "created": "1970-01-02T00:00:00.000Z",
-      "icon": "Grass",
-      "lastVersionId": "latest-release",
-      "name": ""
+      "name": "jman_modpack"
     }
   },
   "settings": {
