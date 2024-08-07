@@ -1,6 +1,6 @@
 import {useQuery} from "react-query";
 import {type} from "@tauri-apps/api/os";
-import MinecraftFinder from "./ModInstaller/MinecraftFinder.tsx";
+import MinecraftFinder from "./ModInstaller/MinecraftFinder";
 
 export default function MinecraftInfo(){
     const osInfo = useQuery('osType',async () => {

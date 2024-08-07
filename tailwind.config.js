@@ -7,7 +7,16 @@ export default {
       "./src/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+        keyframes:{
+            "dots-animate":{
+
+            }
+        },
+        content:{
+            "throb-dots": "..."
+        }
+    },
   },
   plugins: [],
 }

@@ -7,7 +7,6 @@ export default function InstallerBase(){
 
     return(
         <QueryClientProvider client={queryClient}>
-            {/*<input type={'button'} value={'Click me'} onClick={logSftp}/>*/}
             <ComputerInfo/>
             <MinecraftInfo/>
         </QueryClientProvider>

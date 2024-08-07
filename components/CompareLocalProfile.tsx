@@ -1,10 +1,10 @@
-import {RemoteProfileType} from "./RemoteInfo.tsx";
+import {RemoteProfile} from "@my-types/";
 import {useQuery, useQueryClient} from "react-query";
 import {FileEntry, readDir} from "@tauri-apps/api/fs";
 import {invoke} from "@tauri-apps/api";
 import ModDiscrepancies from "./ModDiscrepancies.tsx";
 
-export default function CompareLocalProfile({profile,path}:Readonly<{ profile:RemoteProfileType,path:string }>){
+export default function CompareLocalProfile({profile,path}:Readonly<{ profile:RemoteProfile,path:string }>){
 const queryClient = useQueryClient();
     const installMissingMods = async ()=>{
         // @ts-ignore

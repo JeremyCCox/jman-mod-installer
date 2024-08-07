@@ -2,21 +2,10 @@ import {QueryClientProvider, useQuery, useQueryClient} from "react-query";
 import {exists, createDir} from "@tauri-apps/api/fs";
 import {useState} from "react";
 import LoadingSpinner from "./LoadingSpinner.tsx";
-import RemoteProfile from "./RemoteProfile.tsx";
+import RemoteProfileInfo from "./RemoteProfileInfo.tsx";
 import {invoke} from "@tauri-apps/api";
+import {RemoteProfile} from "@my-types/*";
 
-export interface LauncherProfileType{
-    created?:string,
-    game_dir?:string,
-    icon?:string,
-    last_version_id?:string,
-    name?:string,
-}
-export interface RemoteProfileType{
-    name:string,
-    mods?:[string],
-    launcher_profile?:LauncherProfileType;
-}
 
 export default function RemoteInfo({path}:Readonly<{path:string}>){
     const [message, setMessage] = useState("")
@@ -36,7 +25,7 @@ export default function RemoteInfo({path}:Readonly<{path:string}>){
             await createDir(`${path}/profiles`)
         }
         // let profiles = await fakeProfiles();
-        let profiles = (await invoke<[RemoteProfileType]>("read_sftp_dir",{}))
+        let profiles = (await invoke<[RemoteProfile]>("read_sftp_dir",{}))
             // .map(profile=>{
             // console.log(profile)
             // return betterReadout(profile)
@@ -74,7 +63,7 @@ export default function RemoteInfo({path}:Readonly<{path:string}>){
                     profileInfo.data.profiles.map(profile=>{
                         return(
                             <QueryClientProvider client={useQueryClient()}>
-                                <RemoteProfile profile={profile} path={path} setLoading={setLoading} setMessage={setMessage} key={profile.name}/>
+                                <RemoteProfileInfo profile={profile} path={path} setLoading={setLoading} setMessage={setMessage} key={profile.name}/>
                             </QueryClientProvider>
                             )
                     })

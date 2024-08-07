@@ -1,6 +1,7 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::io::Error;
 use std::path::{PathBuf};
 use serde_json::{json, Value};
 use crate::sftp::{sftp_download_specific_mods, sftp_install_profile, sftp_read_remote_profiles, sftp_upload_profile, sftp_upload_specific_mods};
@@ -11,7 +12,10 @@ mod mc_profiles;
 
 #[tauri::command]
 fn read_installer_config()->Result<InstallerConfig,String>{
-    Ok(InstallerConfig::open())
+    match InstallerConfig::open(){
+        Ok(config) => { Ok(config) }
+        Err(_) => {Err("Could not open installer config!".parse().unwrap())}
+    }
 }
 
 #[tauri::command]
@@ -26,11 +30,16 @@ fn write_installer_config(installer_config: InstallerConfig)-> Result<(), String
 
 
 #[tauri::command(async)]
-fn attempt_remote_connection_config()->Result<(),String>{
-    let installer_config = InstallerConfig::open();
+fn attempt_remote_connection_config()->Result<bool,String>{
+    let installer_config = match InstallerConfig::open(){
+        Ok(installer_config) => { installer_config }
+        Err(_) => {
+            return Err("Could not open installer config!".parse().unwrap())
+        }
+    };
     match installer_config.sftp_safe_connect() {
         Ok(_) => {
-            Ok(())
+            Ok(true)
         }
         Err(_) => {
             Err("Could not connect with provided information!".parse().unwrap())
@@ -49,6 +58,16 @@ fn attempt_remote_connection_new(installer_config: InstallerConfig)->Result<(),S
         }
     }
 }
+#[tauri::command(async)]
+fn clear_installer_config()->Result<(),String>{
+    match InstallerConfig::clear(){
+        Ok(_) => Ok(()),
+        Err(_) => {
+            Err("Could not delete current config!".parse().unwrap())
+        }
+    }
+}
+
 #[tauri::command(async)]
 fn download_sftp_profile(base_path:&str,profile_name:&str)->Result<(),String>{
     println!("{:?}",base_path);

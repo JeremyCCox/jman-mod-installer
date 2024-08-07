@@ -1,10 +1,10 @@
 import React from "react";
 import {useQueryClient} from "react-query";
-import {RemoteProfileType} from "./RemoteInfo.tsx";
+import {RemoteProfile} from "@my-types/"
 import CompareLocalProfile from "./CompareLocalProfile.tsx";
 import {invoke} from "@tauri-apps/api";
 
-export default function RemoteProfile({profile,setMessage,setLoading, path}:Readonly<{profile:RemoteProfileType,setMessage:any,setLoading:any,path:string}>){
+export default function RemoteProfileInfo({profile,setMessage,setLoading, path}:Readonly<{profile:RemoteProfile,setMessage:any,setLoading:any,path:string}>){
 
     const queryClient = useQueryClient();
 

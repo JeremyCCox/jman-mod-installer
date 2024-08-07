@@ -1,16 +1,14 @@
 use std::{env, fs, io};
 use std::collections::HashMap;
-use std::fmt::{Error, Formatter};
+use std::fmt::{Error};
 use std::fs::File;
 use std::io::{Write};
 use std::net::TcpStream;
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 use std::process::Command;
-use std::ptr::read;
 use chrono::{Utc};
 use serde::{Deserialize, Serialize};
 use ssh2::{Session, Sftp};
-use log::error;
 
 
 pub fn list_profiles_mods(profile_path:&PathBuf) -> Result<Vec<PathBuf>,io::Error> {
@@ -49,7 +47,7 @@ impl LauncherProfiles{
     pub fn from_file(base_path: &PathBuf) ->Self{
         let file = File::open(base_path.join("launcher_profiles.json")).expect("Could not open launcher_profiles.json");
         // fs::rename(base_path.join("launcher_profiles.json"),base_path.join("launcher_profiles-copy.json")).expect("Could not store launcher_profiles.json into launcher_profiles.json");
-        let mut launcher_profiles: LauncherProfiles = serde_json::from_reader(&file).expect("Could not read launcher_profiles.json");
+        let launcher_profiles: LauncherProfiles = serde_json::from_reader(&file).expect("Could not read launcher_profiles.json");
         // fs::rename(base_path.join("launcher_profiles-copy.json"),base_path.join("launcher_profiles.json")).expect("Could not restore launcher_profiles.json from copy ");
         launcher_profiles
     }
@@ -97,15 +95,15 @@ pub struct LauncherProfile {
     // profile_type : String, // Should be type but type is reserved in rust!
 }
 impl LauncherProfile{
-    pub fn new() -> Self{
-        Self{
-            created: Some(Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)),
-            game_dir: None,
-            icon: Some("Enchanting_Table".parse().unwrap()),
-            last_version_id:  Some("fabric-loader-0.15.11-1.20.1".parse().unwrap()),
-            name: None,
-        }
-    }
+    // pub fn new() -> Self{
+    //     Self{
+    //         created: Some(Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)),
+    //         game_dir: None,
+    //         icon: Some("Enchanting_Table".parse().unwrap()),
+    //         last_version_id:  Some("fabric-loader-0.15.11-1.20.1".parse().unwrap()),
+    //         name: None,
+    //     }
+    // }
     pub fn from(name: &str) -> Self{
         Self{
             created:  Some(Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)),
@@ -172,22 +170,22 @@ impl InstallerConfig{
         Self::default()
     }
 
-    #[cfg(test)]
-    pub fn test_new()->Self{
-        Self{
-            default_game_dir: Some("test\\.minecraft".parse().unwrap()),
-            sftp_server: Some("bigbrainedgamers.com".parse().unwrap()),
-            sftp_port: Some("2222".parse().unwrap()),
-            sftp_username: Some("headless".parse().unwrap()),
-            sftp_password: Some("pword".parse().unwrap()),
-        }
-    }
-    pub fn from_game_dir(game_dir:&str)->Self{
-        Self{
-            default_game_dir:Some(game_dir.to_string()),
-            ..Self::default()
-        }
-    }
+    // #[cfg(test)]
+    // pub fn test_new()->Self{
+    //     Self{
+    //         default_game_dir: Some("test\\.minecraft".parse().unwrap()),
+    //         sftp_server: Some("bigbrainedgamers.com".parse().unwrap()),
+    //         sftp_port: Some("2222".parse().unwrap()),
+    //         sftp_username: Some("headless".parse().unwrap()),
+    //         sftp_password: Some("pword".parse().unwrap()),
+    //     }
+    // }
+    // pub fn from_game_dir(game_dir:&str)->Self{
+    //     Self{
+    //         default_game_dir:Some(game_dir.to_string()),
+    //         ..Self::default()
+    //     }
+    // }
     pub fn save_config(&self)->Result<(),io::Error>{
         let app_dir = tauri::api::path::data_dir().unwrap().join("jman-mod-installer");
         let _ = fs::create_dir(&app_dir);
@@ -196,15 +194,15 @@ impl InstallerConfig{
         file.write(json.as_ref()).expect("Could not save config.json");
         Ok(())
     }
-    pub fn open()->Self{
+    pub fn open()->Result<Self,io::Error>{
         let app_dir = tauri::api::path::data_dir().unwrap().join("jman-mod-installer");
         match File::open(app_dir.join("config.json")){
             Ok(file) => {
                 let read_config:InstallerConfig = serde_json::from_reader(file).expect("Could not read from config.json");
-                read_config
+                Ok(read_config)
             },
-            Err(_) => {
-                Self::default()
+            Err(err) => {
+                Err(err)
             }
         }
     }
@@ -252,6 +250,10 @@ impl InstallerConfig{
             }
         }
     }
+    pub fn clear()->Result<(),io::Error> {
+        let app_dir = tauri::api::path::data_dir().unwrap().join("jman-mod-installer");
+        Ok(fs::remove_file(app_dir.join("config.json")).unwrap())
+    }
 }
 pub fn create_profile(base_path:&PathBuf,profile_name:&str)-> Result<(),io::Error>{
     let profile_path = PathBuf::from(&base_path).join("profiles").join(profile_name);
@@ -282,7 +284,7 @@ pub fn create_mods_folder(base_path:&PathBuf,profile_name:&str)-> Result<(),io::
 //     Ok(Some(json["profiles"].as_object()))
 // }
 pub fn install_launcher_profile(base_path:&PathBuf,profile_name:&str)->Result<(),Error>{
-    let mut launcher_profile = LauncherProfile::from_file(base_path, profile_name);
+    let launcher_profile = LauncherProfile::from_file(base_path, profile_name);
     // let mut LauncherProfiles = LauncherProfiles::from_file(base_path);
     launcher_profile.save_file(&base_path);
     Ok(())
@@ -379,7 +381,7 @@ mod tests{
     }
     #[test]
     fn test_read_config(){
-        let installer_config = InstallerConfig::open();
+        let installer_config = InstallerConfig::open().unwrap();
         assert!(installer_config.default_game_dir.eq(&Some("".parse().unwrap())));
     }
 }
