@@ -1,10 +1,9 @@
 import {QueryClientProvider, useQuery, useQueryClient} from "react-query";
-import {exists, createDir} from "@tauri-apps/api/fs";
-import {useState} from "react";
+import {exists, createDir, readDir} from "@tauri-apps/api/fs";
+import React, {Fragment, useEffect, useState} from "react";
 import LoadingSpinner from "./LoadingSpinner.tsx";
 import RemoteProfileInfo from "./RemoteProfileInfo.tsx";
 import {invoke} from "@tauri-apps/api";
-import {RemoteProfile} from "@my-types/*";
 
 
 export default function RemoteInfo({path}:Readonly<{path:string}>){
@@ -19,22 +18,39 @@ export default function RemoteInfo({path}:Readonly<{path:string}>){
     //     })
     //
     // }
-    const profileInfo = useQuery('remote-profiles',async () => {
-        let profiles_exists = await exists(path);
-        if(!profiles_exists){
-            await createDir(`${path}/profiles`)
-        }
-        // let profiles = await fakeProfiles();
-        let profiles = (await invoke<[RemoteProfile]>("read_sftp_dir",{}))
-            // .map(profile=>{
-            // console.log(profile)
-            // return betterReadout(profile)
 
-        // })
-        // console.log(JSON.stringify(profiles))
-        return({profiles})
-    }
+
+    /////////////
+
+    // const profileInfo = useQuery('remote-profiles',async () => {
+    //     let profiles_exists = await exists(path);
+    //     if(!profiles_exists){
+    //         await createDir(`${path}/profiles`)
+    //     }
+    //     let profiles = (await invoke<[RemoteProfile]>("read_sftp_dir",{}))
+    //
+    //     return({profiles})
+    // }
+
+    /////////////
+
+    const profileInfo = useQuery('profiles',async () => {
+            let profiles_exists = await exists(path);
+            if(!profiles_exists){
+                await createDir(`${path}/profiles`)
+            }
+            let remote_profiles = (await invoke<[string]>("read_profile_names"))
+            let local_profiles  = (await readDir(`${path}/profiles`,{recursive:false})).map(local=>{
+                return(local.name)
+            })
+            console.log("local profiles",local_profiles)
+            return({remote_profiles,local_profiles})
+        }
     ,{refetchOnWindowFocus:false})
+
+    // useEffect(()=>{
+    //     console.log("profile info",profileInfo)
+    // },[profileInfo])
     // const betterReadout = (profile )=>{
     //     // let modsListing = listing.children?.find(({name})=>name === "mods")
     //     return("ada");
@@ -55,16 +71,16 @@ export default function RemoteInfo({path}:Readonly<{path:string}>){
                         }
                     </span>
             </div>
-            <div className={'flex justify-evenly overflow-x-auto'}>
+            <div className={'flex flex-wrap justify-evenly overflow-x-auto border'}>
                 {profileInfo.isLoading&&
                     <LoadingSpinner/>
                 }
                 {profileInfo.data&&
-                    profileInfo.data.profiles.map(profile=>{
+                    profileInfo.data.remote_profiles.map(profile=>{
                         return(
-                            <QueryClientProvider client={useQueryClient()}>
-                                <RemoteProfileInfo profile={profile} path={path} setLoading={setLoading} setMessage={setMessage} key={profile.name}/>
-                            </QueryClientProvider>
+                            <Fragment key={`${profile}-${profileInfo.data.local_profiles.includes(profile)}`}>
+                                <RemoteProfileInfo profileName={profile} installed={profileInfo.data.local_profiles.includes(profile)} path={path} setMessage={setMessage} />
+                            </Fragment>
                             )
                     })
                 }

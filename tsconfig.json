@@ -7,6 +7,7 @@
     "skipLibCheck": true,
     "paths": {
       "@my-types/*":["./lib/types.ts"]
+//      "@components/*":["./components/*"]
     },
     /* Bundler mode */
     "moduleResolution": "bundler",

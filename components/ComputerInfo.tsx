@@ -13,6 +13,9 @@ export default function ComputerInfo(){
     const readClick=async ()=>{
         console.log(await invoke("read_installer_config"))
     }
+    const customFunc=async ()=>{
+        console.log(await invoke("read_profile_names"))
+    }
 
     return(
         <>
@@ -26,6 +29,7 @@ export default function ComputerInfo(){
                         {osInfo.data}
                         <input type={'button'} onClick={readClick} value={'read'}/>
                         <input type={'button'} onClick={writeClick} value={'write'}/>
+                        <input type={'button'} onClick={customFunc} value={'operation'}/>
 
                     </div>
             }

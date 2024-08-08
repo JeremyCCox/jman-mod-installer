@@ -1,14 +1,24 @@
-import {QueryClient, QueryClientProvider} from "react-query";
-import ComputerInfo from "../ComputerInfo.tsx";
-import MinecraftInfo from "../MinecraftInfo.tsx";
+import {QueryClient, QueryClientProvider, useQuery} from "react-query";
+import {type} from "@tauri-apps/api/os";
+import MinecraftFinder from "./MinecraftFinder.tsx";
 
 export default function InstallerBase(){
-    const queryClient = new QueryClient()
-
+    const osInfo = useQuery('osType',async () => {
+        return (await type())
+    })
     return(
-        <QueryClientProvider client={queryClient}>
-            <ComputerInfo/>
-            <MinecraftInfo/>
-        </QueryClientProvider>
+        <>
+            {osInfo.isLoading?
+                <></>
+                :
+                osInfo.error?
+                    <>Could not verify operating system!</>
+                    :
+                    <div className={'m-16'}>
+                        <MinecraftFinder osType={osInfo.data||"Windows_NT"}/>
+                    </div>
+
+            }
+        </>
     )
 }

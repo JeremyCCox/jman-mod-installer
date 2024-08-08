@@ -1,26 +1,26 @@
-import {QueryClient, QueryClientProvider, useQuery, UseQueryResult} from "react-query";
-import {FormEvent, useEffect} from "react";
+import {QueryClient, QueryClientProvider, useQuery, useQueryClient, UseQueryResult} from "react-query";
+import {FormEvent, useEffect, useState} from "react";
 import {invoke} from "@tauri-apps/api";
 import {InstallerProfile} from "@my-types/*";
-import UserLogin from "../components/UserLogin.tsx";
+import UserLogin from "../components/UserLogin";
 import InstallerBase from "../components/ModInstaller/InstallerBase.tsx";
 
 
 function InstallerLauncher() {
-    const accessQuery=useQuery(["login"],async () => {
+    const queryClient = useQueryClient();
+    const [loading,setLoading] = useState(false)
+    const accessQuery=useQuery("login",async () => {
         return invoke("attempt_remote_connection_config").then((res)=>{
-            console.log("First Query")
             console.log(res)
-            return{success:false}
+            return{success:true}
         }).catch(err=>{
             console.log(err)
         });
     })
     const configQuery:UseQueryResult<InstallerProfile> = useQuery(["config"],async () => {
-        console.log("Second Query")
         return await invoke("read_installer_config");
     },
-        // {enabled:accessQuery.data?accessQuery.data.success:false}
+        {enabled:accessQuery.data?accessQuery.data.success:false}
     )
     useEffect(()=>{
         console.log(accessQuery)
@@ -33,8 +33,11 @@ function InstallerLauncher() {
     }
 
     const attemptLogin=async (config:InstallerProfile)=>{
+        setLoading(true)
+        await queryClient.invalidateQueries("login")
         // console.log(config)
-        console.log(await invoke("attempt_remote_connection_new",{installerConfig:config}))
+        await invoke("attempt_remote_connection_new",{installerConfig:config})
+        await queryClient.refetchQueries("login")
         return
     }
 
@@ -45,7 +48,8 @@ function InstallerLauncher() {
 
     return (
         <>
-
+            {/*<InstallerBase/>*/}
+            <h1 className={'text-4xl font-bold font-mono mt-[15vh] mb-[5vh]'}>JMAN MOD MANAGER</h1>
             {accessQuery.isLoading?
                 <div>
                     <h3 className={'absolute text-4xl top-[8vh] text-center w-full text-blue-300 animate-pulse'}>
@@ -57,9 +61,9 @@ function InstallerLauncher() {
                     <InstallerBase/>
                     :
                     configQuery.data?
-                            <UserLogin handleSubmit={handleSubmit} config={configQuery.data}/>
+                            <UserLogin handleSubmit={handleSubmit} loading={loading} config={configQuery.data}/>
                         :
-                            <UserLogin handleSubmit={handleSubmit} />
+                            <UserLogin handleSubmit={handleSubmit} loading={loading} />
 
 
             }

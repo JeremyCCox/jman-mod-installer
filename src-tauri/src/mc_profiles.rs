@@ -170,16 +170,39 @@ impl InstallerConfig{
         Self::default()
     }
 
-    // #[cfg(test)]
-    // pub fn test_new()->Self{
-    //     Self{
-    //         default_game_dir: Some("test\\.minecraft".parse().unwrap()),
-    //         sftp_server: Some("bigbrainedgamers.com".parse().unwrap()),
-    //         sftp_port: Some("2222".parse().unwrap()),
-    //         sftp_username: Some("headless".parse().unwrap()),
-    //         sftp_password: Some("pword".parse().unwrap()),
-    //     }
-    // }
+    #[cfg(test)]
+    pub fn test_new()->Self{
+        Self{
+            default_game_dir: Some("test\\.minecraft".parse().unwrap()),
+            sftp_server: Some("bigbrainedgamers.com".parse().unwrap()),
+            sftp_port: Some("2222".parse().unwrap()),
+            sftp_username: Some("headless".parse().unwrap()),
+            sftp_password: Some("pword".parse().unwrap()),
+        }
+    }
+    #[cfg(test)]
+    pub fn test_open()->Result<Self,io::Error>{
+        let app_dir = tauri::api::path::data_dir().unwrap().join("jman-mod-installer");
+        match File::open(app_dir.join("test-config.json")){
+            Ok(file) => {
+                println!("{:?}",file);
+                let read_config:InstallerConfig = serde_json::from_reader(file).expect("Could not read from config.json");
+                Ok(read_config)
+            },
+            Err(err) => {
+                Err(err)
+            }
+        }
+    }
+    #[cfg(test)]
+    pub fn test_save(&self)->Result<(),io::Error>{
+        let app_dir = tauri::api::path::data_dir().unwrap().join("jman-mod-installer");
+        let _ = fs::create_dir(&app_dir);
+        let json = serde_json::to_string_pretty(&self).unwrap();
+        let mut file = File::create(&app_dir.join("test-config.json")).expect("Could not create config.json");
+        file.write(json.as_ref()).expect("Could not save config.json");
+        Ok(())
+    }
     // pub fn from_game_dir(game_dir:&str)->Self{
     //     Self{
     //         default_game_dir:Some(game_dir.to_string()),
@@ -198,7 +221,7 @@ impl InstallerConfig{
         let app_dir = tauri::api::path::data_dir().unwrap().join("jman-mod-installer");
         match File::open(app_dir.join("config.json")){
             Ok(file) => {
-                let read_config:InstallerConfig = serde_json::from_reader(file).expect("Could not read from config.json");
+                let read_config:InstallerConfig = serde_json::from_reader(file)?;
                 Ok(read_config)
             },
             Err(err) => {
@@ -252,22 +275,28 @@ impl InstallerConfig{
     }
     pub fn clear()->Result<(),io::Error> {
         let app_dir = tauri::api::path::data_dir().unwrap().join("jman-mod-installer");
+        let _ = fs::remove_file(app_dir.join("config.json"));
+        let _ = fs::remove_file(app_dir.join("test-config.json"));
+
+
         Ok(fs::remove_file(app_dir.join("config.json")).unwrap())
     }
 }
 pub fn create_profile(base_path:&PathBuf,profile_name:&str)-> Result<(),io::Error>{
-    let profile_path = PathBuf::from(&base_path).join("profiles").join(profile_name);
+    let installer_config = InstallerConfig::open().unwrap();
+    println!("{:?}",installer_config);
+    let profile_path = PathBuf::from(installer_config.default_game_dir.unwrap()).join("profiles").join(profile_name);
     let launcher_profile = LauncherProfile::from(profile_name);
     fs::create_dir_all(&profile_path.join("mods")).expect("Couldnt create the profile directory");
     fs::copy(&base_path.join("options.txt"),&profile_path.join("options.txt")).expect("Could not create options copy");
+    fs::copy(&base_path.join("servers.dat"),&profile_path.join("servers.dat")).expect("Could not create options copy");
     let mut launcher_profiles = LauncherProfiles::from_file(base_path);
     launcher_profiles.insert_profile(launcher_profile,base_path,profile_name);
-    // let profile_config=  File::create(profile_path.join("profile_config.json")).unwrap();
-    // let mut data = String::new();
-    // launcher_profiles.read_to_string(& mut data).unwrap();
-
-    // Create Launcher_profile.json to load into .minecraft/launcher_profiles on install
-
+    Ok(())
+}
+pub fn copy_local_profile(base_path:&str,profile_name:&str,copy_name:&str)->Result<(),io::Error>{
+    let installer_config = InstallerConfig::open().unwrap();
+    
     Ok(())
 }
 
@@ -317,8 +346,14 @@ pub fn open_profile_location(base_path:&PathBuf,profile_name:&str)->Result<(),io
 
 #[cfg(test)]
 mod tests{
+    use serial_test::serial;
     use super::*;
     const BASE_PATH_STRING: &str = "test\\.minecraft";
+    // #[test]
+    pub fn setup_test_profile()->Result<(),io::Error>{
+        let installer_config:InstallerConfig = InstallerConfig::test_new();
+        installer_config.test_save()
+    }
     #[test]
     fn test_insert_profile(){
         let mut launcher_profiles = LauncherProfiles::from_file(&PathBuf::from(BASE_PATH_STRING));
@@ -333,6 +368,7 @@ mod tests{
         assert_eq!(mods,[mods_path.join("mods").join("testjar.jar")])
     }
     #[test]
+    #[serial]
     fn test_create_profile(){
         let base_path = PathBuf::from(BASE_PATH_STRING);
         let profile_name = "new_profile";
@@ -342,11 +378,7 @@ mod tests{
     }
     #[test]
     fn test_connect_profile(){
-        let mut installer_config = InstallerConfig::new();
-        installer_config.sftp_username = Some("headless".parse().unwrap());
-        installer_config.sftp_password = Some("pword".parse().unwrap());
-        installer_config.sftp_server = Some("bigbrainedgamers.com".parse().unwrap());
-        installer_config.sftp_port = Some("2222".parse().unwrap());
+        let mut installer_config = InstallerConfig::test_new();
         let sftp_result = installer_config.sftp_connect();
         assert!(sftp_result.is_ok());
     }
@@ -375,13 +407,17 @@ mod tests{
     }
 
     #[test]
+    #[serial]
     fn test_create_config(){
-        let installer_config = InstallerConfig::new();
-        assert!(installer_config.save_config().is_ok());
+        let installer_config = InstallerConfig::test_new();
+        assert!(installer_config.test_save().is_ok());
+        setup_test_profile().unwrap()
     }
     #[test]
+    #[serial]
     fn test_read_config(){
-        let installer_config = InstallerConfig::open().unwrap();
-        assert!(installer_config.default_game_dir.eq(&Some("".parse().unwrap())));
+        setup_test_profile().unwrap();
+        let installer_config = InstallerConfig::test_open().unwrap();
+        assert!(installer_config.default_game_dir.eq(&Some("test\\.minecraft".parse().unwrap())));
     }
 }

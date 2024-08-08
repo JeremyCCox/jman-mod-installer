@@ -61,15 +61,24 @@ pub fn sftp_read_remote_profiles()->Result<Vec<RemoteProfileInfo>,ssh2::Error>{
     match sftp_list_dir(PathBuf::from(SFTP_PROFILES_DIR).as_path()){
         Ok(readout) => {
             for i in readout.iter(){
-                let mut remote_profile = RemoteProfileInfo::new(String::from(i.0.file_name().unwrap().to_str().unwrap()));
-                remote_profile.mods = Some(sftp_list_mods(remote_profile.name.as_str()).unwrap());
-                remote_profile.launcher_profile = Some(sftp_read_launcher_profile(remote_profile.name.as_str()).unwrap());
-                remote_profiles.push(remote_profile);
+                if i.1.is_dir(){
+                    let mut remote_profile = RemoteProfileInfo::new(String::from(i.0.file_name().unwrap().to_str().unwrap()));
+                    remote_profile.mods = Some(sftp_list_mods(remote_profile.name.as_str()).unwrap());
+                    remote_profile.launcher_profile = Some(sftp_read_launcher_profile(remote_profile.name.as_str()).unwrap());
+                    remote_profiles.push(remote_profile);
+                }
             }
         }
         Err(_) => {}
     }
     Ok(remote_profiles)
+}
+pub fn sftp_read_specific_remote_profile(profile_name:&str)->Result<RemoteProfileInfo,ssh2::Error>{
+    // let sftp = InstallerConfig::open().unwrap().sftp_safe_connect().unwrap();
+    let mut remote_profile = RemoteProfileInfo::new(String::from(profile_name));
+    remote_profile.mods = Some(sftp_list_mods(remote_profile.name.as_str()).unwrap());
+    remote_profile.launcher_profile = Some(sftp_read_launcher_profile(remote_profile.name.as_str()).unwrap());
+    Ok(remote_profile)
 }
 pub fn sftp_save_file(path_string:&String,file_name:&String) {
     let installer_config = InstallerConfig::open().unwrap();
@@ -302,6 +311,14 @@ mod tests {
 
     }
     #[test]
+    fn test_read_specific_remote_profile(){
+        let result = sftp_read_specific_remote_profile("new_profile");
+        assert!(result.is_ok());
+        println!("{:?}",result)
+
+
+    }
+    #[test]
     fn upload_file(){
         
         let remote_path = PathBuf::from("/upload/test.file");
@@ -394,7 +411,7 @@ mod tests {
     }
     #[test]
     fn test_install_launcher_profile(){
-        
+
         let base_path = PathBuf::from(LOCAL_BASE_PATH_STRING);
         let profile_name = "new_profile";
         assert!(sftp_install_launcher_profile(&base_path, profile_name).is_ok());
@@ -496,7 +513,7 @@ mod tests {
     }
     #[test]
     fn test_read_remote_profiles(){
-        
+
         let remote_profiles = sftp_read_remote_profiles().unwrap();
         let mut names = Vec::new();
         for x in remote_profiles {
