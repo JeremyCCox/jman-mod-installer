@@ -1,11 +1,9 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::ffi::OsString;
-use std::io::Error;
 use std::path::{PathBuf};
 use serde_json::{json, Value};
-use crate::sftp::{RemoteProfileInfo, sftp_download_specific_mods, sftp_install_profile, sftp_list_dir, sftp_read_remote_profiles, sftp_read_specific_remote_profile, sftp_upload_profile, sftp_upload_specific_mods};
+use crate::sftp::{RemoteProfile, sftp_download_specific_mods, sftp_install_profile, sftp_list_dir, sftp_read_remote_profiles, sftp_read_specific_remote_profile, sftp_upload_profile, sftp_upload_specific_mods};
 use crate::mc_profiles::{copy_local_profile, create_profile, InstallerConfig, open_profile_location};
 
 mod sftp;
@@ -99,7 +97,6 @@ fn read_sftp_dir() -> Result<Value,String> {
 }
 #[tauri::command(async)]
 fn read_profile_names()->Result<Vec<String>,String>{
-    let installer_profile = InstallerConfig::open().unwrap();
     let mut profile_names:Vec<String> = Vec::new();
     let sftp_dir = sftp_list_dir(&PathBuf::from("upload/profiles/")).or_else(|err|{Err("Could not list Profiles")}).unwrap();
     for x in sftp_dir {
@@ -110,7 +107,7 @@ fn read_profile_names()->Result<Vec<String>,String>{
     Ok(profile_names)
 }
 #[tauri::command(async)]
-fn read_specific_remote_profile(profile_name:&str)->Result<RemoteProfileInfo,String>{
+fn read_specific_remote_profile(profile_name:&str)->Result<RemoteProfile,String>{
     match sftp_read_specific_remote_profile(profile_name){
         Ok(profile) => {Ok(profile)}
         Err(_) => {Err("Could not read remote profile!".parse().unwrap())}

@@ -1,29 +1,60 @@
 use std::fs::File;
 use std::{fs, io};
+use std::fmt::{Display, Formatter, write};
 use std::io::{Write};
 use std::path::{Path,PathBuf};
 use serde::{Deserialize, Serialize};
 use ssh2::{Error, FileStat};
-use crate::mc_profiles::{create_mods_folder, create_profile, InstallerConfig, LauncherProfile, LauncherProfiles, list_profiles_mods};
+use crate::mc_profiles::{create_mods_folder, create_profile, GameProfile, InstallerConfig, LauncherProfile, LauncherProfiles, list_profiles_mods};
 
 
 const SFTP_PROFILES_DIR: &str = "/upload/profiles/";
 
+#[derive(Debug)]
+pub enum InstallerError{
+    Ssh2(ssh2::Error),
+    Io(io::Error),
+    Json(serde_json::error::Error)
+}
+impl Display for InstallerError{
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self{
+            InstallerError::Ssh2(error) => {
+                write!(f,"{}",error)
+            }
+            InstallerError::Io(error) => {
+                write!(f,"{}",error)
+            }
+            InstallerError::Json(error) => {
+                write!(f,"{}",error)
+            }
+        }
+    }
+}
+impl From<io::Error> for InstallerError {
+    fn from(value: io::Error) -> Self {
+        InstallerError::Io(value)
+    }
+}
+impl From<serde_json::error::Error> for InstallerError {
+    fn from(value: serde_json::error::Error) -> Self {
+        InstallerError::Json(value)
+    }
+}
+impl From<ssh2::Error> for InstallerError {
+    fn from(value: ssh2::Error) -> Self {
+        InstallerError::Ssh2(value)
+    }
+}
+
 #[derive(Serialize,Deserialize,Debug)]
-pub struct RemoteProfileInfo{
+pub struct RemoteProfile{
     pub name:String,
     pub mods:Option<Vec<String>>,
     pub launcher_profile:Option<LauncherProfile>,
+    pub config:Option<Vec<String>>,
 }
-impl RemoteProfileInfo{
-
-    pub fn new(name: String) ->Self{
-        Self{
-            name:name,
-            mods: None,
-            launcher_profile: None,
-        }
-    }
+impl RemoteProfile{
     // pub fn from_sftp(name:String)->Self{
     //     Self{
     //         name,
@@ -32,12 +63,70 @@ impl RemoteProfileInfo{
     //     }
     // }
 }
+impl GameProfile for RemoteProfile{
+    fn new(profile_name: &str) -> Self {
+        Self{
+            name:profile_name.parse().unwrap(),
+            mods: None,
+            launcher_profile: None,
+            config: None,
+        }
+    }
 
+    fn open(profile_name: &str) -> Result<Self, InstallerError>
+    where
+        Self: Sized
+    {
+        let mut profile = Self::new(profile_name);
+        profile.read_mods()?;
+        profile.read_launcher_profile()?;
+        Ok(profile)
+    }
+
+    fn read_mods(&mut self) -> Result<(), InstallerError> {
+        let sftp =  InstallerConfig::open().unwrap().sftp_safe_connect().expect("Could not establish SFTP connection");
+        let mut mod_names = Vec::new();
+        match sftp.readdir(PathBuf::from(SFTP_PROFILES_DIR).join(&self.name).join("mods").as_path()) {
+            Ok(dir_readout) => {
+                let mut mods_list = Vec::new();
+                for i in dir_readout.iter(){
+                    let file_name = i.0.file_name().unwrap();
+                    mods_list.push(file_name.to_str().unwrap().to_string())
+                }
+                self.mods = Some(mod_names);
+                Ok(())
+            }
+            Err(err) => {
+                Err(InstallerError::from(err))
+            }
+        }
+    }
+
+    fn read_launcher_profile(&mut self) -> Result<(), InstallerError> {
+        let sftp = InstallerConfig::open().unwrap().sftp_safe_connect().unwrap();
+        match sftp.open(PathBuf::from(SFTP_PROFILES_DIR).join(&self.name).join("launcher_profile.json").as_path()) {
+            Ok(file) => {
+                self.launcher_profile = serde_json::from_reader(file)?;
+                Ok(())
+            }
+            Err(err) => {
+                Err(InstallerError::Ssh2(err))
+            }
+        }
+    }
+    fn rename_profile(&mut self, new_name: &str) -> Result<(), InstallerError> {
+        let sftp = InstallerConfig::open().unwrap().sftp_safe_connect().unwrap();
+
+        sftp.rename(PathBuf::from(SFTP_PROFILES_DIR).join(&self.name).as_path(),PathBuf::from(SFTP_PROFILES_DIR).join(new_name).as_path(),None)?;
+        self.name = new_name.to_string();
+        Ok(())
+    }
+}
 pub fn sftp_list_dir(path: &Path) -> Result<Vec<(PathBuf, FileStat)>, Error>{
     let sftp =  InstallerConfig::open().unwrap().sftp_safe_connect().expect("Could not connect!");
     sftp.readdir(path)
 }
-pub fn sftp_list_mods(profile_name:&str)->Result<Vec<String>,ssh2::Error>{
+pub fn sftp_list_mods(profile_name:&str)->Result<Vec<String>,InstallerError>{
     let sftp =  InstallerConfig::open().unwrap().sftp_safe_connect().expect("Could not establish SFTP connection");
 
     let mut mods_list = Vec::new();
@@ -51,18 +140,18 @@ pub fn sftp_list_mods(profile_name:&str)->Result<Vec<String>,ssh2::Error>{
             Ok(mods_list)
         }
         Err(err) => {
-            Err(err)
+            Err(InstallerError::Ssh2(err))
         }
     }
 }
-pub fn sftp_read_remote_profiles()->Result<Vec<RemoteProfileInfo>,ssh2::Error>{
+pub fn sftp_read_remote_profiles()->Result<Vec<RemoteProfile>,InstallerError>{
     // let sftp = InstallerConfig::open().unwrap().sftp_safe_connect().unwrap();
-    let mut remote_profiles:Vec<RemoteProfileInfo> = Vec::new();
+    let mut remote_profiles:Vec<RemoteProfile> = Vec::new();
     match sftp_list_dir(PathBuf::from(SFTP_PROFILES_DIR).as_path()){
         Ok(readout) => {
             for i in readout.iter(){
                 if i.1.is_dir(){
-                    let mut remote_profile = RemoteProfileInfo::new(String::from(i.0.file_name().unwrap().to_str().unwrap()));
+                    let mut remote_profile = RemoteProfile::new(i.0.file_name().unwrap().to_str().unwrap());
                     remote_profile.mods = Some(sftp_list_mods(remote_profile.name.as_str()).unwrap());
                     remote_profile.launcher_profile = Some(sftp_read_launcher_profile(remote_profile.name.as_str()).unwrap());
                     remote_profiles.push(remote_profile);
@@ -73,9 +162,9 @@ pub fn sftp_read_remote_profiles()->Result<Vec<RemoteProfileInfo>,ssh2::Error>{
     }
     Ok(remote_profiles)
 }
-pub fn sftp_read_specific_remote_profile(profile_name:&str)->Result<RemoteProfileInfo,ssh2::Error>{
+pub fn sftp_read_specific_remote_profile(profile_name:&str)->Result<RemoteProfile,InstallerError>{
     // let sftp = InstallerConfig::open().unwrap().sftp_safe_connect().unwrap();
-    let mut remote_profile = RemoteProfileInfo::new(String::from(profile_name));
+    let mut remote_profile = RemoteProfile::new(profile_name);
     remote_profile.mods = Some(sftp_list_mods(remote_profile.name.as_str()).unwrap());
     remote_profile.launcher_profile = Some(sftp_read_launcher_profile(remote_profile.name.as_str()).unwrap());
     Ok(remote_profile)
@@ -96,13 +185,13 @@ pub fn sftp_upload_file(local_path: &PathBuf, remote_path:&PathBuf) {
     let mut remote_file = sftp.create(remote_path.as_ref()).expect("Could not create File");
     io::copy(&mut upload_file, &mut remote_file).expect("Could not write file!");
 }
-pub fn sftp_upload_profile(base_path:&PathBuf, profile_name:&str) ->Result<(),io::Error>{
+pub fn sftp_upload_profile(base_path:&PathBuf, profile_name:&str) ->Result<(),InstallerError>{
     sftp_create_profile_dirs(&profile_name)?;
     sftp_create_launcher_profile(&base_path,profile_name)?;
     sftp_upload_mods(&base_path,profile_name)?;
     Ok(())
 }
-pub fn sftp_upload_mods(base_path:&PathBuf, profile_name:&str)->Result<(),io::Error>{
+pub fn sftp_upload_mods(base_path:&PathBuf, profile_name:&str)->Result<(),InstallerError>{
     let mods = list_profiles_mods(&base_path.join("profiles").join(profile_name)).unwrap();
     let installer_config = InstallerConfig::open()?;
     let sftp =installer_config.sftp_safe_connect().unwrap();
@@ -117,7 +206,7 @@ pub fn sftp_upload_mods(base_path:&PathBuf, profile_name:&str)->Result<(),io::Er
     };
     Ok(())
 }
-pub fn sftp_upload_specific_mods(base_path:&PathBuf, profile_name:&str,missing_list:Vec<String>)->Result<(),io::Error>{
+pub fn sftp_upload_specific_mods(base_path:&PathBuf, profile_name:&str,missing_list:Vec<String>)->Result<(),InstallerError>{
     let mods = list_profiles_mods(&base_path.join("profiles").join(profile_name)).unwrap();
     let installer_config = InstallerConfig::open()?;
     let sftp =installer_config.sftp_safe_connect().unwrap();
@@ -152,48 +241,48 @@ pub fn sftp_upload_profile_mods(profile_path:&PathBuf, profile_name:&str) {
         io::copy(&mut upload_file, &mut remote_file).expect("Could not write file!");
     }
 }
-pub fn sftp_create_launcher_profile(base_path:&PathBuf,profile_name:&str)->Result<(),io::Error>{
+pub fn sftp_create_launcher_profile(base_path:&PathBuf,profile_name:&str)->Result<(),InstallerError>{
     let installer_config = InstallerConfig::open()?;
     let sftp =installer_config.sftp_safe_connect().unwrap();
 
-    let launcher_profile:LauncherProfile = LauncherProfile::from_file(base_path,profile_name);
+    let launcher_profile:LauncherProfile = LauncherProfile::from_file(profile_name)?;
     let remote_launcher_profile = PathBuf::from(SFTP_PROFILES_DIR).join(profile_name).join("launcher_profile.json");
-    let launcher_json = serde_json::to_string(&launcher_profile)?;
-    let mut launcher_file = sftp.create(remote_launcher_profile.as_path())?;
+    let launcher_json = serde_json::to_string(&launcher_profile).map_err(|err|InstallerError::Json(err))?;
+    let mut launcher_file = sftp.create(remote_launcher_profile.as_path()).map_err(|err|InstallerError::Ssh2(err))?;
     launcher_file.write(launcher_json.as_ref()).expect("Could not write launcher_profile.json to remote profile");
     Ok(())
 }
 // pub fn sftp_download_mod(sftp:&Sftp){
 //
 // }
-pub fn sftp_install_launcher_profile(base_path:&PathBuf,profile_name:&str)->Result<(),io::Error>{
+pub fn sftp_install_launcher_profile(base_path:&PathBuf,profile_name:&str)->Result<(),InstallerError>{
     let sftp = InstallerConfig::open().unwrap().sftp_safe_connect().expect("Could not establish SFTP connection!");
     let remote_path = PathBuf::from(SFTP_PROFILES_DIR).join(profile_name).join("launcher_profile.json");
     // let mut profiles_map: &Map<String, Value> = launcher_profiles["profiles"].as_object().unwrap();
     let mut launcher_profiles: LauncherProfiles = LauncherProfiles::from_file(base_path);
     match sftp.lstat(&remote_path.as_path()){
         Ok(_) => {
-            let remote_file = sftp.open(&remote_path.as_path())?;
-            let launcher_profile:LauncherProfile = serde_json::from_reader(remote_file)?;
-            launcher_profiles.insert_profile(launcher_profile,base_path,profile_name);
+            let remote_file = sftp.open(&remote_path.as_path()).map_err(|err|InstallerError::Ssh2(err))?;
+            let launcher_profile:LauncherProfile = serde_json::from_reader(remote_file).map_err(|err|InstallerError::Json(err))?;
+            launcher_profiles.insert_profile(launcher_profile,profile_name);
             launcher_profiles.save(base_path);
             Ok(())
         },
         Err(_) => {
-            fs::rename(base_path.join("launcher_profiles.json"),base_path.join("launcher_profiles.json"))?;
+            fs::rename(base_path.join("launcher_profiles.json"),base_path.join("launcher_profiles.json")).map_err(|err|InstallerError::Io(err))?;
             panic!("Could not find remote launcher profile!")
         }
     }
     // Ok(())
 }
-pub fn sftp_download_profile_mods(base_path:&PathBuf, profile_name:&str) ->Result<(),io::Error>{
+pub fn sftp_download_profile_mods(base_path:&PathBuf, profile_name:&str) ->Result<(),InstallerError>{
 
     create_profile(&base_path,profile_name).expect("Could not create local Profile");
     create_mods_folder(&base_path,profile_name).expect("Error creating mods folder!");
     let _ = sftp_download_mods(&base_path,profile_name);
     Ok(())
 }
-pub fn sftp_download_mods(base_path:&PathBuf, profile_name:&str) ->Result<(),io::Error>{
+pub fn sftp_download_mods(base_path:&PathBuf, profile_name:&str) ->Result<(),InstallerError>{
     let sftp = InstallerConfig::open().unwrap().sftp_safe_connect()?;
     let remote_path = PathBuf::from(SFTP_PROFILES_DIR).join(profile_name).join("mods");
     let local_path = &base_path.join("profiles").join(profile_name).join("mods");
@@ -207,7 +296,7 @@ pub fn sftp_download_mods(base_path:&PathBuf, profile_name:&str) ->Result<(),io:
     };
     Ok(())
 }
-pub fn sftp_download_specific_mods(base_path:&PathBuf, profile_name:&str,mods_list:Vec<String>) ->Result<(),ssh2::Error>{
+pub fn sftp_download_specific_mods(base_path:&PathBuf, profile_name:&str,mods_list:Vec<String>) ->Result<(),InstallerError>{
     let sftp = InstallerConfig::open().unwrap().sftp_safe_connect()?;
     let remote_path = PathBuf::from(SFTP_PROFILES_DIR).join(profile_name).join("mods");
     let local_path = &base_path.join("profiles").join(profile_name).join("mods");
@@ -226,30 +315,32 @@ pub fn sftp_download_specific_mods(base_path:&PathBuf, profile_name:&str,mods_li
             };
             Ok(())
         }
-        Err(err) => {Err(err)}
+        Err(err) => {
+            Err(InstallerError::Ssh2(err))
+        }
     }
     // Ok(())
 }
 
-pub fn sftp_read_launcher_profile(profile_name:&str)->Result<LauncherProfile,ssh2::Error>{
+pub fn sftp_read_launcher_profile(profile_name:&str)->Result<LauncherProfile,InstallerError>{
     let sftp = InstallerConfig::open().unwrap().sftp_safe_connect().unwrap();
     match sftp.open(PathBuf::from(SFTP_PROFILES_DIR).join(profile_name).join("launcher_profile.json").as_path()) {
         Ok(file) => {
             Ok(serde_json::from_reader(file).expect("Could not read JSON from file"))
         }
         Err(err) => {
-            Err(err)
+            Err(InstallerError::Ssh2(err))
         }
     }
 }
-pub fn sftp_install_profile(base_path:&PathBuf, profile_name:&str)->Result<(),io::Error>{
+pub fn sftp_install_profile(base_path:&PathBuf, profile_name:&str)->Result<(),InstallerError>{
     create_profile(&base_path,profile_name).expect("Could not create local Profile");
     create_mods_folder(&base_path,profile_name).expect("Error creating mods folder!");
     sftp_download_mods(&base_path,profile_name)?;
     sftp_install_launcher_profile(&base_path,profile_name)?;
     Ok(())
 }
-pub fn sftp_create_profile_dirs(profile_name: &str) -> Result<(), io::Error> {
+pub fn sftp_create_profile_dirs(profile_name: &str) -> Result<(), InstallerError> {
     let sftp = InstallerConfig::open().unwrap().sftp_safe_connect().unwrap();
     let profile_path = PathBuf::from(SFTP_PROFILES_DIR).join(profile_name);
     match sftp.lstat(&profile_path.as_path()){
@@ -257,13 +348,13 @@ pub fn sftp_create_profile_dirs(profile_name: &str) -> Result<(), io::Error> {
             match sftp.lstat(&profile_path.join("mods").as_path()){
                 Ok(_) => {Ok(())}
                 Err(_) => {
-                    Ok(sftp.mkdir(&profile_path.join("mods").as_path(), 1000)?)
+                    Ok(sftp.mkdir(&profile_path.join("mods").as_path(), 1000).map_err(|err|InstallerError::Ssh2(err))?)
                 }
             }
         },
         Err(_) => {
                 match sftp.mkdir(&profile_path.as_path(), 1000) {
-                    Ok(_) => Ok(sftp.mkdir(&profile_path.join("mods").as_path(), 1000)?),
+                    Ok(_) => Ok(sftp.mkdir(&profile_path.join("mods").as_path(), 1000).map_err(|err|InstallerError::Ssh2(err))?),
                     Err(_) => panic!("Could not find or create Profile!"),
                 }
             }
@@ -278,7 +369,7 @@ mod tests {
     use super::*;
 
     const LOCAL_BASE_PATH_STRING: &str = "test\\.minecraft";
-    // pub fn setup_test_profile()->Result<(),io::Error>{
+    // pub fn setup_test_profile()->Result<(),InstallerError>{
     //     let installer_config:InstallerConfig = InstallerConfig::test_new();
     //     installer_config.save_config()
     // }
