@@ -46,7 +46,14 @@ pub struct LauncherProfiles{
     pub version: u64,
 }
 impl LauncherProfiles{
-
+    pub fn open() ->Self{
+        let base_path =  InstallerConfig::open().unwrap().default_game_dir.unwrap();
+        let file = File::open(base_path.join("launcher_profiles.json")).expect("Could not open launcher_profiles.json");
+        // fs::rename(base_path.join("launcher_profiles.json"),base_path.join("launcher_profiles-copy.json")).expect("Could not store launcher_profiles.json into launcher_profiles.json");
+        let launcher_profiles: LauncherProfiles = serde_json::from_reader(&file).expect("Could not read launcher_profiles.json");
+        // fs::rename(base_path.join("launcher_profiles-copy.json"),base_path.join("launcher_profiles.json")).expect("Could not restore launcher_profiles.json from copy ");
+        launcher_profiles
+    }
     pub fn from_file(base_path: &PathBuf) ->Self{
         let file = File::open(base_path.join("launcher_profiles.json")).expect("Could not open launcher_profiles.json");
         // fs::rename(base_path.join("launcher_profiles.json"),base_path.join("launcher_profiles-copy.json")).expect("Could not store launcher_profiles.json into launcher_profiles.json");
@@ -60,6 +67,11 @@ impl LauncherProfiles{
         launcher_profile.game_dir = Some(base_path.join("profiles").join(&profile_name));
         launcher_profile.created = Some(Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true));
         self.profiles.insert((&profile_name).parse().unwrap(), launcher_profile);
+        self.save();
+        Ok(())
+    }
+    pub fn remove_profile(&mut self, profile_name:&str) ->Result<(),InstallerError>{
+        self.profiles.remove(&profile_name.to_string());
         self.save();
         Ok(())
     }
