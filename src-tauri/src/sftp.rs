@@ -1,11 +1,11 @@
 use std::fs::File;
 use std::{fs, io};
-use std::fmt::{Display, Formatter, write};
+use std::fmt::{Display, Formatter};
 use std::io::{Write};
-use std::path::{Path,PathBuf};
+use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use ssh2::{Error, FileStat};
-use crate::mc_profiles::{create_mods_folder, create_profile, GameProfile, InstallerConfig, LauncherProfile, LauncherProfiles, list_profiles_mods};
+use crate::mc_profiles::{create_mods_folder, create_profile, Profile, InstallerConfig, LauncherProfile, LauncherProfiles, list_profiles_mods, GameProfile};
 
 
 const SFTP_PROFILES_DIR: &str = "/upload/profiles/";
@@ -63,7 +63,7 @@ impl RemoteProfile{
     //     }
     // }
 }
-impl GameProfile for RemoteProfile{
+impl Profile for RemoteProfile{
     fn new(profile_name: &str) -> Self {
         Self{
             name:profile_name.parse().unwrap(),
@@ -72,7 +72,20 @@ impl GameProfile for RemoteProfile{
             config: None,
         }
     }
+    fn create(profile_name:&str) ->Result<Self,InstallerError> {
+        let new_profile = RemoteProfile::new(profile_name);
 
+        // Sets up Remote profile directories
+        let sftp = InstallerConfig::open().unwrap().sftp_safe_connect().unwrap();
+        let profile_path = PathBuf::from(SFTP_PROFILES_DIR).join(profile_name);
+        let _ = sftp.mkdir(profile_path.as_path(),1002);
+        let _ = sftp.mkdir(&profile_path.join("mods").as_path(), 1000);
+        let _ = sftp.mkdir(&profile_path.join("resource_packs").as_path(), 1000);
+        let _ = sftp.mkdir(&profile_path.join("config").as_path(), 1000);
+        sftp.lstat(profile_path.join("mods").as_path())?;
+
+        Ok(new_profile)
+    }
     fn open(profile_name: &str) -> Result<Self, InstallerError>
     where
         Self: Sized
@@ -83,21 +96,64 @@ impl GameProfile for RemoteProfile{
         Ok(profile)
     }
 
+    fn copy(self, copy_name: &str) -> Result<Self,InstallerError> {
+        let sftp = InstallerConfig::open().unwrap().sftp_safe_connect().unwrap();
+        let mut new_profile = RemoteProfile::create(copy_name)?;
+
+        let mut new_launcher_profile = self.launcher_profile.clone().unwrap();
+        new_launcher_profile.name = Some(copy_name.to_string());
+        new_profile.launcher_profile= Some(new_launcher_profile);
+        new_profile.write_launcher_profile()?;
+        let remote_path = PathBuf::from(SFTP_PROFILES_DIR);
+        let mut mods_names :Vec<String>=Vec::new();
+        let remote_mods = sftp.readdir(remote_path.join(&self.name).join("mods").as_path())?;
+        for mods in remote_mods {
+            // let mut  = fs::File::open(&a).expect("Could not find File!");
+            let file_name = mods.0.file_name().unwrap().to_str().unwrap();
+            mods_names.push(mods.0.file_name().unwrap().to_str().unwrap().to_string());
+            println!("{:?}",remote_path.join("mods").join(file_name));
+            let mut remote_mod = sftp.open(remote_path.join(&self.name).join("mods").join(file_name).as_path()).expect("Could not open mod");
+            let mut new_mod = sftp.create(remote_path.join(copy_name).join("mods").join(file_name).as_path()).expect("Could not create new mod location");
+            io::copy(&mut remote_mod, &mut new_mod).expect("Could not write new mod!");
+        }
+        new_profile.mods = Some(mods_names);
+
+        Ok(new_profile)
+
+    }
+
+    fn delete(&mut self) -> Result<(), InstallerError> {
+        let sftp = InstallerConfig::open()?.sftp_safe_connect()?;
+        let _ = sftp.rmdir(PathBuf::from(SFTP_PROFILES_DIR).join(&self.name).as_path())?;
+        Ok(())
+    }
+
     fn read_mods(&mut self) -> Result<(), InstallerError> {
-        let sftp =  InstallerConfig::open().unwrap().sftp_safe_connect().expect("Could not establish SFTP connection");
-        let mut mod_names = Vec::new();
+        let sftp = InstallerConfig::open().unwrap().sftp_safe_connect().expect("Could not establish SFTP connection");
         match sftp.readdir(PathBuf::from(SFTP_PROFILES_DIR).join(&self.name).join("mods").as_path()) {
             Ok(dir_readout) => {
-                let mut mods_list = Vec::new();
-                for i in dir_readout.iter(){
+                let mut mod_names = Vec::new();
+                for i in dir_readout.iter() {
                     let file_name = i.0.file_name().unwrap();
-                    mods_list.push(file_name.to_str().unwrap().to_string())
+                    mod_names.push(file_name.to_str().unwrap().to_string())
                 }
                 self.mods = Some(mod_names);
                 Ok(())
             }
             Err(err) => {
                 Err(InstallerError::from(err))
+            }
+        }
+    }
+    fn write_launcher_profile(&mut self) -> Result<(), InstallerError> {
+        let sftp = InstallerConfig::open().unwrap().sftp_safe_connect().unwrap();
+        match sftp.create(PathBuf::from(SFTP_PROFILES_DIR).join(&self.name).join("launcher_profile.json").as_path()) {
+            Ok(mut file) => {
+                file.write(serde_json::to_string(&self.launcher_profile)?.as_ref())?;
+                Ok(())
+            }
+            Err(err) => {
+                Err(InstallerError::Ssh2(err))
             }
         }
     }
@@ -116,9 +172,12 @@ impl GameProfile for RemoteProfile{
     }
     fn rename_profile(&mut self, new_name: &str) -> Result<(), InstallerError> {
         let sftp = InstallerConfig::open().unwrap().sftp_safe_connect().unwrap();
-
         sftp.rename(PathBuf::from(SFTP_PROFILES_DIR).join(&self.name).as_path(),PathBuf::from(SFTP_PROFILES_DIR).join(new_name).as_path(),None)?;
         self.name = new_name.to_string();
+        let mut new_launcher_profile = self.launcher_profile.clone().unwrap();
+        new_launcher_profile.name=Some(new_name.to_string());
+        self.launcher_profile=Some(new_launcher_profile);
+        self.write_launcher_profile()?;
         Ok(())
     }
 }
@@ -247,8 +306,8 @@ pub fn sftp_create_launcher_profile(base_path:&PathBuf,profile_name:&str)->Resul
 
     let launcher_profile:LauncherProfile = LauncherProfile::from_file(profile_name)?;
     let remote_launcher_profile = PathBuf::from(SFTP_PROFILES_DIR).join(profile_name).join("launcher_profile.json");
-    let launcher_json = serde_json::to_string(&launcher_profile).map_err(|err|InstallerError::Json(err))?;
-    let mut launcher_file = sftp.create(remote_launcher_profile.as_path()).map_err(|err|InstallerError::Ssh2(err))?;
+    let launcher_json = serde_json::to_string(&launcher_profile)?;
+    let mut launcher_file = sftp.create(remote_launcher_profile.as_path())?;
     launcher_file.write(launcher_json.as_ref()).expect("Could not write launcher_profile.json to remote profile");
     Ok(())
 }
@@ -265,7 +324,7 @@ pub fn sftp_install_launcher_profile(base_path:&PathBuf,profile_name:&str)->Resu
             let remote_file = sftp.open(&remote_path.as_path()).map_err(|err|InstallerError::Ssh2(err))?;
             let launcher_profile:LauncherProfile = serde_json::from_reader(remote_file).map_err(|err|InstallerError::Json(err))?;
             launcher_profiles.insert_profile(launcher_profile,profile_name);
-            launcher_profiles.save(base_path);
+            launcher_profiles.save();
             Ok(())
         },
         Err(_) => {
@@ -365,6 +424,7 @@ pub fn sftp_create_profile_dirs(profile_name: &str) -> Result<(), InstallerError
 // }
 #[cfg(test)]
 mod tests {
+    use std::ptr::read;
     use serial_test::serial;
     use super::*;
 
@@ -373,6 +433,61 @@ mod tests {
     //     let installer_config:InstallerConfig = InstallerConfig::test_new();
     //     installer_config.save_config()
     // }
+
+
+    #[test]
+    fn test_open_profile(){
+        let profile_name="new_profile";
+        let result = RemoteProfile::open(profile_name);
+        assert!(result.is_ok());
+        let remote_profile = result.unwrap();
+        println!("{:?}",remote_profile)
+    }
+    #[test]
+    #[serial]
+    fn test_write_launcher_profile(){
+        let profile_name="new_profile";
+        let new_profile_name="new_profile_name";
+        let mut result = RemoteProfile::open(profile_name).unwrap();
+        assert_eq!(result.launcher_profile.clone().unwrap().name.unwrap(),profile_name.to_string());
+        result.rename_profile(new_profile_name).unwrap();
+        let written_profile = sftp_read_launcher_profile(new_profile_name).unwrap();
+        assert_eq!(written_profile.name.unwrap(),"new_profile_name".to_string());
+
+        // Revert profile to profile_name
+        result.rename_profile(profile_name).unwrap();
+    }
+    #[test]
+    #[serial]
+    fn test_copy_profile(){
+        let profile_name = "new_profile";
+        {
+            let initial_profile = RemoteProfile::open(profile_name).unwrap();
+            let new_profile = initial_profile.copy("copy_profile").unwrap();
+            println!("{:?}",new_profile);
+            let readout = sftp_list_dir(PathBuf::from(SFTP_PROFILES_DIR).as_path()).unwrap();
+            println!("{:?}",readout);
+        }
+        // let result = RemoteProfile::open(profile_name);
+        // assert!(result.is_err());
+        // RemoteProfile::new(profile_name);
+    }
+    #[test]
+    #[serial]
+    fn test_delete_profile(){
+        let profile_name = "new_profile";
+        {
+            let result = RemoteProfile::open(profile_name);
+            assert!(result.is_ok());
+            let profile = result.unwrap();
+            // profile.delete();
+        }
+        let result = RemoteProfile::open(profile_name);
+        assert!(result.is_err());
+        RemoteProfile::new(profile_name);
+    }
+
+
     #[test]
     fn it_works() {
         
@@ -554,7 +669,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_download_profile(){
-        
+
         let base_path = PathBuf::from("test/.minecraft");
         let profile_name = "new_profile";
 
@@ -572,9 +687,11 @@ mod tests {
         let launcher_profiles: LauncherProfiles = serde_json::from_reader(&file).unwrap();
         let mut profile_names: Vec<&String> = Vec::new();
         for p in launcher_profiles.profiles.iter(){
-            profile_names.push(&p.0);
+            profile_names.push(p.0);
         }
-        assert!(profile_names.contains(&&profile_name.to_string()));
+        println!("{:?}",profile_names);
+        println!("{:?}",launcher_profiles);
+        assert!(profile_names.contains(&&"new_profile".to_string()));
 
         // Test that the mods folder exists and contains testjar.jar
         assert!(fs::metadata(profile_path.join("new_profile").join("mods").join("testjar.jar").as_path()).unwrap().is_file())

@@ -1,6 +1,5 @@
 use std::{env, fs, io};
 use std::collections::HashMap;
-use std::fmt::{Error};
 use std::fs::File;
 use std::io::{Write};
 use std::net::TcpStream;
@@ -9,7 +8,7 @@ use std::process::Command;
 use chrono::{Utc};
 use serde::{Deserialize, Serialize};
 use ssh2::{Session, Sftp};
-use crate::sftp::{InstallerError, sftp_create_launcher_profile, sftp_create_profile_dirs, sftp_upload_mods};
+use crate::sftp::{InstallerError, RemoteProfile, sftp_create_launcher_profile, sftp_create_profile_dirs, sftp_upload_mods};
 
 
 pub fn list_profiles_mods(profile_path:&PathBuf) -> Result<Vec<PathBuf>,InstallerError> {
@@ -61,10 +60,11 @@ impl LauncherProfiles{
         launcher_profile.game_dir = Some(base_path.join("profiles").join(&profile_name));
         launcher_profile.created = Some(Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true));
         self.profiles.insert((&profile_name).parse().unwrap(), launcher_profile);
-        self.save(base_path);
+        self.save();
         Ok(())
     }
-    pub fn save(&self, base_path:&PathBuf){
+    pub fn save(&self){
+        let base_path = InstallerConfig::open().unwrap().default_game_dir.unwrap();
         let launcher_profiles_json = serde_json::to_string_pretty(&self).unwrap();
         fs::rename(base_path.join("launcher_profiles.json"),base_path.join("launcher_profiles-copy.json")).expect("Could not restore launcher_profiles.json from copy ");
         match File::create(base_path.join("launcher_profiles.json")){
@@ -84,7 +84,7 @@ impl LauncherProfiles{
         };
     }
 }
-#[derive(Serialize,Deserialize,Debug)]
+#[derive(Serialize,Deserialize,Debug,Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct LauncherProfile {
     // #[serde(with = "ts_seconds")]
@@ -110,7 +110,7 @@ impl LauncherProfile{
     //         name: None,
     //     }
     // }
-    pub fn from(name: &str) -> Self{
+    pub fn new(name: &str) -> Self{
         Self{
             created:  Some(Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)),
             game_dir: None,
@@ -124,7 +124,7 @@ impl LauncherProfile{
         let base_path = PathBuf::from(installer_config.default_game_dir.unwrap());
         let local_launcher_profiles = File::open(&base_path.join("launcher_profiles.json")).unwrap();
         let json:serde_json::Value = serde_json::from_reader(&local_launcher_profiles).expect("Could not read JSON from file");
-        let mut launcher_profile:LauncherProfile = LauncherProfile::from(profile_name);
+        let mut launcher_profile:LauncherProfile = LauncherProfile::new(profile_name);
         for (key,value) in json["profiles"].as_object().unwrap(){
             match value["gameDir"].as_str(){
                 None=>{},
@@ -148,10 +148,28 @@ impl LauncherProfile{
     }
 
 }
-pub trait GameProfile{
+pub enum GameProfile{
+    Local(LocalProfile),
+    Remote(RemoteProfile),
+}
+impl From<LocalProfile> for GameProfile{
+    fn from(value: LocalProfile) -> Self {
+        GameProfile::Local(value)
+    }
+}
+impl From<RemoteProfile> for GameProfile{
+    fn from(value: RemoteProfile) -> Self {
+        GameProfile::Remote(value)
+    }
+}
+pub trait Profile{
     fn new(profile_name:&str)->Self;
+    fn create (profile_name:&str)->Result<Self,InstallerError> where Self: Sized;
     fn open(profile_name:&str)->Result<Self,InstallerError> where Self: Sized;
+    fn copy (self,copy_name:&str)->Result<Self,InstallerError> where Self: Sized;
+    fn delete(&mut self)->Result<(),InstallerError>;
     fn read_mods(&mut self)->Result<(),InstallerError>;
+    fn write_launcher_profile(&mut self)->Result<(),InstallerError>;
     fn read_launcher_profile(&mut self)->Result<(),InstallerError>;
     fn rename_profile(&mut self,new_name:&str)->Result<(),InstallerError>;
 
@@ -164,7 +182,7 @@ pub struct LocalProfile{
     pub mods:Option<Vec<String>>,
     pub launcher_profile:Option<LauncherProfile>,
     pub resource_packs:Option<Vec<String>>,
-    pub config:Option<String>
+    pub config:Option<Vec<String>>
     // pub servers:Option<>
 }
 
@@ -177,7 +195,7 @@ impl LocalProfile{
         Ok(())
     }
 }
-impl GameProfile for LocalProfile{
+impl Profile for LocalProfile{
     fn new(profile_name: &str) -> Self {
         Self {
             name: profile_name.parse().unwrap(),
@@ -188,6 +206,10 @@ impl GameProfile for LocalProfile{
         }
     }
 
+    fn create(profile_name: &str)->Result<Self,InstallerError>{
+        todo!()
+    }
+
     fn open(profile_name:&str) -> Result<Self, InstallerError> {
         // let installer_config = InstallerConfig::open()?;
         let mut profile = Self::new(profile_name);
@@ -195,7 +217,12 @@ impl GameProfile for LocalProfile{
         profile.read_launcher_profile()?;
         Ok(profile)
     }
-
+    fn copy(self, copy_name: &str) -> Result<Self, InstallerError> {
+        todo!()
+    }
+    fn delete(&mut self) -> Result<(), InstallerError> {
+        todo!()
+    }
     fn read_mods(&mut self)->Result<(),InstallerError>{
         let installer_config = InstallerConfig::open()?;
         let profile_path = PathBuf::from(installer_config.default_game_dir.unwrap()).join("profiles").join(&self.name);
@@ -208,14 +235,21 @@ impl GameProfile for LocalProfile{
         self.mods = Some(mod_names);
         Ok(())
     }
+    fn write_launcher_profile(&mut self) -> Result<(), InstallerError> {
+        let mut launcher_profiles = LauncherProfiles::from_file(&InstallerConfig::open()?.default_game_dir.unwrap());
+        let _ = launcher_profiles.profiles.remove(&self.name);
 
+        launcher_profiles.profiles.insert(self.name.clone(),self.launcher_profile.clone().unwrap());
+        launcher_profiles.save();
+        Ok(())
+    }
     fn read_launcher_profile(&mut self) -> Result<(), InstallerError> {
         let mut launcher_profiles = LauncherProfiles::from_file(&InstallerConfig::open()?.default_game_dir.unwrap());
         self.launcher_profile = launcher_profiles.profiles.remove(&self.name);
         Ok(())
     }
 
-    fn rename_profile(&mut self,new_name:&str) -> Result<(), InstallerError>{
+    fn rename_profile(&mut self, new_name:&str) -> Result<(), InstallerError>{
         let base_path = &InstallerConfig::open()?.default_game_dir.unwrap();
         println!("{:?}",base_path);
         println!("{:?}",base_path.join("profiles").join(&self.name));
@@ -228,12 +262,10 @@ impl GameProfile for LocalProfile{
             None => {}
             Some(launcher_profile) => {
                 launcher_profiles.insert_profile(launcher_profile,new_name)?;
-                launcher_profiles.save(base_path);
+                launcher_profiles.save();
             }
         };
-
-        self.name=new_name.to_string();
-
+        self.name= new_name.to_string();
         Ok(())
     }
 }
@@ -388,12 +420,12 @@ pub fn create_profile(base_path:&PathBuf,profile_name:&str)-> Result<(),Installe
     let installer_config = InstallerConfig::open().unwrap();
     println!("{:?}",installer_config);
     let profile_path = PathBuf::from(installer_config.default_game_dir.unwrap()).join("profiles").join(profile_name);
-    let launcher_profile = LauncherProfile::from(profile_name);
+    let launcher_profile = LauncherProfile::new(profile_name);
     fs::create_dir_all(&profile_path.join("mods")).expect("Couldnt create the profile directory");
     fs::copy(&base_path.join("options.txt"),&profile_path.join("options.txt")).expect("Could not create options copy");
     fs::copy(&base_path.join("servers.dat"),&profile_path.join("servers.dat")).expect("Could not create options copy");
     let mut launcher_profiles = LauncherProfiles::from_file(base_path);
-    launcher_profiles.insert_profile(launcher_profile,profile_name);
+    launcher_profiles.insert_profile(launcher_profile,profile_name)?;
     Ok(())
 }
 pub fn copy_local_profile(base_path:&str,profile_name:&str,copy_name:&str)->Result<(),InstallerError>{
@@ -462,7 +494,7 @@ mod tests{
     // #[test]
     // fn test_insert_profile(){
     //     let mut launcher_profiles = LauncherProfiles::from_file(&PathBuf::from(BASE_PATH_STRING));
-    //     let launcher_profile = LauncherProfile::from("test_profile");
+    //     let launcher_profile = LauncherProfile::new("test_profile");
     //     launcher_profiles.insert_profile(launcher_profile,"test_profile").expect("Could not insert profile!");
     //
     // }
