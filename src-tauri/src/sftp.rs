@@ -4,7 +4,7 @@ use std::fmt::{Display, Formatter};
 use std::io::{Write};
 use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
-use ssh2::{Error, FileStat};
+use ssh2::{Error, FileStat, Sftp};
 use crate::mc_profiles::{create_mods_folder, create_profile, Profile, InstallerConfig, LauncherProfile, LauncherProfiles, list_profiles_mods, GameProfile};
 
 
@@ -122,9 +122,9 @@ impl Profile for RemoteProfile{
 
     }
 
-    fn delete(&mut self) -> Result<(), InstallerError> {
+    fn delete(self) -> Result<(), InstallerError> {
         let sftp = InstallerConfig::open()?.sftp_safe_connect()?;
-        let _ = sftp.rmdir(PathBuf::from(SFTP_PROFILES_DIR).join(&self.name).as_path())?;
+        sftp_clean_dir(&PathBuf::from(SFTP_PROFILES_DIR).join(self.name),&sftp)?;
         Ok(())
     }
 
@@ -181,6 +181,29 @@ impl Profile for RemoteProfile{
         Ok(())
     }
 }
+
+pub fn sftp_clean_dir(clean_path:&PathBuf,sftp:&Sftp)->Result<(),Error>{
+    match sftp.lstat(clean_path).unwrap().is_dir(){
+        true => {
+            match sftp.readdir(clean_path){
+                Ok(dir_readout) => {
+                    for child in dir_readout {
+                        let _ = sftp_clean_dir(&child.0,&sftp).unwrap();
+                    }
+                    sftp.rmdir(clean_path)?;
+                }
+                Err(err) => {
+                    return Err(err)
+                }
+            }
+        }
+        false => {
+            sftp.unlink(clean_path)?;
+        }
+    }
+    Ok(())
+}
+
 pub fn sftp_list_dir(path: &Path) -> Result<Vec<(PathBuf, FileStat)>, Error>{
     let sftp =  InstallerConfig::open().unwrap().sftp_safe_connect().expect("Could not connect!");
     sftp.readdir(path)
@@ -476,15 +499,20 @@ mod tests {
     #[serial]
     fn test_delete_profile(){
         let profile_name = "new_profile";
-        {
-            let result = RemoteProfile::open(profile_name);
-            assert!(result.is_ok());
-            let profile = result.unwrap();
-            // profile.delete();
+        let start_profile = RemoteProfile::open(profile_name).unwrap();
+        let delete_profile = start_profile.copy("delete_profile").unwrap();
+
+        let mut file_names:Vec<String> = Vec::new();
+        for x in sftp_list_dir(PathBuf::from(SFTP_PROFILES_DIR).as_path()).unwrap(){
+            file_names.push(x.0.file_name().unwrap().to_str().unwrap().to_string());
         }
-        let result = RemoteProfile::open(profile_name);
-        assert!(result.is_err());
-        RemoteProfile::new(profile_name);
+        assert!(file_names.contains(&delete_profile.name));
+        delete_profile.delete().unwrap();
+        let mut file_names:Vec<String> = Vec::new();
+        for x in sftp_list_dir(PathBuf::from(SFTP_PROFILES_DIR).as_path()).unwrap(){
+            file_names.push(x.0.file_name().unwrap().to_str().unwrap().to_string());
+        }
+        assert!(!file_names.contains(&"delete_me".to_string()));
     }
 
 
@@ -590,6 +618,25 @@ mod tests {
             println!("{i:?}")
         }
         assert!(result_profiles.contains(&&sftp_profile_path.join("testjar.jar")));
+    }
+    #[test]
+    fn test_sftp_clean_dir(){
+        let sftp = InstallerConfig::open().unwrap().sftp_safe_connect().unwrap();
+        let base_dir = PathBuf::from(SFTP_PROFILES_DIR).join("delete_me");
+        // sftp.mkdir(base_dir.as_path(), 1000).unwrap();
+        // sftp.mkdir(base_dir.join("dir1").as_path(), 1000).unwrap();
+        // sftp.mkdir(base_dir.join("dir2").as_path(), 1000).unwrap();
+        // sftp.create(base_dir.join("newfile.txt").as_path()).unwrap();
+        // sftp.create(base_dir.join("dir1").join("newfile1.txt").as_path()).unwrap();
+        // sftp.create(base_dir.join("dir1").join("newfile2.txt").as_path()).unwrap();
+        // sftp.create(base_dir.join("dir2").join("newfile1.txt").as_path()).unwrap();
+        let readout1 = sftp.readdir(PathBuf::from(SFTP_PROFILES_DIR).as_path()).unwrap();
+        println!("{:?}",readout1);
+        sftp_clean_dir(&base_dir,&sftp).unwrap();
+        let readout2 = sftp.readdir(PathBuf::from(SFTP_PROFILES_DIR).as_path()).unwrap();
+        println!("{:?}",readout2);
+
+
     }
     #[test]
     #[serial]

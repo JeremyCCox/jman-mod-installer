@@ -179,7 +179,7 @@ pub trait Profile{
     fn create (profile_name:&str)->Result<Self,InstallerError> where Self: Sized;
     fn open(profile_name:&str)->Result<Self,InstallerError> where Self: Sized;
     fn copy (self,copy_name:&str)->Result<Self,InstallerError> where Self: Sized;
-    fn delete(&mut self)->Result<(),InstallerError>;
+    fn delete(self)->Result<(),InstallerError>;
     fn read_mods(&mut self)->Result<(),InstallerError>;
     fn write_launcher_profile(&mut self)->Result<(),InstallerError>;
     fn read_launcher_profile(&mut self)->Result<(),InstallerError>;
@@ -219,7 +219,17 @@ impl Profile for LocalProfile{
     }
 
     fn create(profile_name: &str)->Result<Self,InstallerError>{
-        todo!()
+        let new_profile = Self::new(profile_name);
+        let base_path = &InstallerConfig::open().unwrap().default_game_dir.unwrap();
+        let profile_path = &base_path.join("profiles").join(profile_name);
+        println!("{:?}",base_path);
+        let launcher_profile = LauncherProfile::new(profile_name);
+        fs::create_dir_all(&profile_path.join("mods")).expect("Couldnt create the profile directory");
+        fs::copy(&base_path.join("options.txt"),&profile_path.join("options.txt")).expect("Could not create options copy");
+        fs::copy(&base_path.join("servers.dat"),&profile_path.join("servers.dat")).expect("Could not create options copy");
+        let mut launcher_profiles = LauncherProfiles::from_file(base_path);
+        launcher_profiles.insert_profile(launcher_profile,profile_name)?;
+        Ok(new_profile)
     }
 
     fn open(profile_name:&str) -> Result<Self, InstallerError> {
@@ -232,8 +242,11 @@ impl Profile for LocalProfile{
     fn copy(self, copy_name: &str) -> Result<Self, InstallerError> {
         todo!()
     }
-    fn delete(&mut self) -> Result<(), InstallerError> {
-        todo!()
+    fn delete(self) -> Result<(), InstallerError> {
+        let profile_path = InstallerConfig::open().unwrap().default_game_dir.unwrap().join("profiles").join(&self.name);
+        fs::remove_dir_all(profile_path)?;
+        LauncherProfiles::open().remove_profile(&self.name)?;
+        Ok(())
     }
     fn read_mods(&mut self)->Result<(),InstallerError>{
         let installer_config = InstallerConfig::open()?;
@@ -541,10 +554,9 @@ mod tests{
     #[serial]
     fn test_create_profile(){
         let base_path = PathBuf::from(BASE_PATH_STRING);
-        let profile_name = "new_profile";
-        create_profile(&base_path, profile_name).expect("Could not create new Profile!");
-        let meta_data = fs::metadata(base_path.join("profiles").join(profile_name)).unwrap();
-        assert!(meta_data.is_dir())
+        let profile_name = "create_profile";
+        let new_profile = LocalProfile::create(profile_name).unwrap();
+        println!("{:?}",new_profile);
     }
     #[test]
     fn test_connect_profile(){
