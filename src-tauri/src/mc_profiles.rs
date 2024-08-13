@@ -3,13 +3,14 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Write};
 use std::net::TcpStream;
-use std::path::{PathBuf};
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use chrono::{Utc};
 use serde::{Deserialize, Serialize};
 use ssh2::{Session, Sftp};
-use crate::sftp::{InstallerError, RemoteProfile, sftp_create_launcher_profile, sftp_create_profile_dirs, sftp_upload_mods};
+use crate::sftp::{copy_dir_all, InstallerError, RemoteProfile, sftp_create_launcher_profile, sftp_create_profile_dirs, sftp_list_dir, sftp_upload_mods};
 
+const SFTP_PROFILES_DIR: &str = "/upload/profiles/";
 
 pub fn list_profiles_mods(profile_path:&PathBuf) -> Result<Vec<PathBuf>,InstallerError> {
     let mods = fs::read_dir(profile_path.join("mods").as_path()).expect("Could not read dir!");
@@ -124,11 +125,8 @@ impl LauncherProfile{
     // }
     pub fn new(name: &str) -> Self{
         Self{
-            created:  Some(Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)),
-            game_dir: None,
-            icon: Some("Enchanting_Table".parse().unwrap()),
-            last_version_id: Some("fabric-loader-0.15.11-1.20.1".parse().unwrap()),
-            name: Some(name.to_string()),
+            name:Some(name.parse().unwrap()),
+            ..Self::default()
         }
     }
     pub fn from_file(profile_name:&str)->Result<Self,InstallerError>{
@@ -151,14 +149,22 @@ impl LauncherProfile{
         Ok(launcher_profile)
     }
     pub fn save_file(&self, profile_path:&PathBuf)->Result<(),InstallerError>{
-        let installer_config =  InstallerConfig::open()?;
-
         let launcher_json = serde_json::to_string(self).unwrap();
         let mut launcher_file = File::create(&profile_path.join("launcher_profile.json")).unwrap();
         launcher_file.write(launcher_json.as_ref()).expect("TODO: panic message");
         Ok(())
     }
-
+}
+impl Default for LauncherProfile{
+    fn default() -> Self {
+        Self{
+            created:  Some(Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)),
+            game_dir: None,
+            icon: Some("Enchanting_Table".parse().unwrap()),
+            last_version_id: Some("fabric-loader-0.15.11-1.20.1".parse().unwrap()),
+            name: Some("profile_name".parse().unwrap()),
+        }
+    }
 }
 pub enum GameProfile{
     Local(LocalProfile),
@@ -172,6 +178,16 @@ impl From<LocalProfile> for GameProfile{
 impl From<RemoteProfile> for GameProfile{
     fn from(value: RemoteProfile) -> Self {
         GameProfile::Remote(value)
+    }
+}
+impl From<RemoteProfile> for LocalProfile{
+    fn from(value: RemoteProfile) -> LocalProfile {
+        let mut local = LocalProfile::new(&value.name);
+        let base_path = InstallerConfig::open().unwrap().default_game_dir.unwrap();
+        local.scaffold(&base_path).expect("Could not scaffold local profile");
+        local.launcher_profile=value.launcher_profile;
+        LauncherProfiles::open().insert_profile(local.launcher_profile.clone().unwrap(),&value.name).expect("Could not insert Launcher Profile");
+        local
     }
 }
 pub trait Profile{
@@ -206,6 +222,40 @@ impl LocalProfile{
         sftp_upload_mods(base_path,&self.name)?;
         Ok(())
     }
+    pub fn install_mods(&self,mods_list:Vec<&str>)->Result<(),InstallerError>{
+        let installer_config = InstallerConfig::open().unwrap();
+        let sftp = installer_config.sftp_safe_connect()?;
+        let remote_path = PathBuf::from(SFTP_PROFILES_DIR).join(&self.name).join("mods");
+        let profile_path = installer_config.default_game_dir.unwrap();
+        let local_path = profile_path.join("profiles").join(&self.name).join("mods");
+        match sftp_list_dir(&remote_path.as_path()){
+            Ok(readout) => {
+                for x in readout {
+                    let file_name = x.0.file_name().unwrap().to_str().unwrap();
+                    match mods_list.contains(&file_name){
+                        true => {
+                            let mut remote_file = sftp.open(&remote_path.join(&file_name)).expect("Could not find remote mod File");
+                            let mut local_file = fs::File::create(local_path.join(&file_name).as_path()).expect("Could not create local mod file!");
+                            io::copy(&mut remote_file, &mut local_file).expect("Could not write file!");
+                        }
+                        false => {}
+                    }
+                };
+                Ok(())
+            }
+            Err(err) => {
+                Err(InstallerError::from(err))
+            }
+        }
+    }
+    pub fn scaffold(&self,base_path:&PathBuf)->Result<(),InstallerError>{
+        let profile_path = &base_path.join("profiles").join(&self.name);
+        println!("{:?}",base_path);
+        fs::create_dir_all(&profile_path.join("mods")).expect("Couldnt create the profile directory");
+        fs::copy(&base_path.join("options.txt"),&profile_path.join("options.txt")).expect("Could not create options copy");
+        fs::copy(&base_path.join("servers.dat"),&profile_path.join("servers.dat")).expect("Could not create options copy");
+        Ok(())
+    }
 }
 impl Profile for LocalProfile{
     fn new(profile_name: &str) -> Self {
@@ -219,17 +269,13 @@ impl Profile for LocalProfile{
     }
 
     fn create(profile_name: &str)->Result<Self,InstallerError>{
-        let new_profile = Self::new(profile_name);
+        let profile = Self::new(profile_name);
         let base_path = &InstallerConfig::open().unwrap().default_game_dir.unwrap();
-        let profile_path = &base_path.join("profiles").join(profile_name);
-        println!("{:?}",base_path);
-        let launcher_profile = LauncherProfile::new(profile_name);
-        fs::create_dir_all(&profile_path.join("mods")).expect("Couldnt create the profile directory");
-        fs::copy(&base_path.join("options.txt"),&profile_path.join("options.txt")).expect("Could not create options copy");
-        fs::copy(&base_path.join("servers.dat"),&profile_path.join("servers.dat")).expect("Could not create options copy");
+        profile.scaffold(&base_path)?;
+        let launcher_profile =  LauncherProfile::new(&profile_name);
         let mut launcher_profiles = LauncherProfiles::from_file(base_path);
-        launcher_profiles.insert_profile(launcher_profile,profile_name)?;
-        Ok(new_profile)
+        launcher_profiles.insert_profile(launcher_profile,&profile_name)?;
+        Ok(profile)
     }
 
     fn open(profile_name:&str) -> Result<Self, InstallerError> {
@@ -240,7 +286,18 @@ impl Profile for LocalProfile{
         Ok(profile)
     }
     fn copy(self, copy_name: &str) -> Result<Self, InstallerError> {
-        todo!()
+        let installer_config = InstallerConfig::open().unwrap();
+        let base_path = installer_config.default_game_dir.unwrap();
+        let mut new_profile = LocalProfile::new(copy_name);
+        copy_dir_all(base_path.join("profiles").join(self.name),base_path.join("profiles").join(copy_name))?;
+        let mut new_launcher_profile = self.launcher_profile.clone().unwrap();
+        new_launcher_profile.name = Some(copy_name.to_string());
+        new_profile.launcher_profile= Some(new_launcher_profile);
+        new_profile.mods = self.mods.clone();
+        new_profile.config = self.config.clone();
+        new_profile.resource_packs = self.resource_packs.clone();
+        new_profile.write_launcher_profile()?;
+        Ok(new_profile)
     }
     fn delete(self) -> Result<(), InstallerError> {
         let profile_path = InstallerConfig::open().unwrap().default_game_dir.unwrap().join("profiles").join(&self.name);
@@ -260,6 +317,7 @@ impl Profile for LocalProfile{
         self.mods = Some(mod_names);
         Ok(())
     }
+
     fn write_launcher_profile(&mut self) -> Result<(), InstallerError> {
         let mut launcher_profiles = LauncherProfiles::from_file(&InstallerConfig::open()?.default_game_dir.unwrap());
         let _ = launcher_profiles.profiles.remove(&self.name);

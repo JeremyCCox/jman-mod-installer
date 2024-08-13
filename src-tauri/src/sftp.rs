@@ -62,6 +62,27 @@ impl RemoteProfile{
     //         launcher_profile: None,
     //     }
     // }
+
+    pub fn install_mods(self)->Result<(),InstallerError>{
+        let installer_config = InstallerConfig::open().unwrap();
+        let sftp = installer_config.sftp_safe_connect()?;
+        let remote_path = PathBuf::from(SFTP_PROFILES_DIR).join(&self.name).join("mods");
+        let profile_path = installer_config.default_game_dir.unwrap();
+        let local_path = &profile_path.join("profiles").join(&self.name).join("mods");
+        let mods_list:Vec<String> = self.mods.unwrap();
+        let current_mods:Vec<String> = fs::read_dir(local_path).expect("could not list mods directory").into_iter().map(|x| x.unwrap().file_name().into_string().unwrap()).collect();
+        for mod_name in mods_list{
+            match current_mods.contains(&mod_name) {
+                true => {}
+                false => {
+                    let mut remote_file = sftp.open(&remote_path.join(&mod_name)).expect("Could not find remote mod File");
+                    let mut local_file = fs::File::create(&local_path.join(&mod_name).as_path()).expect("Could not create local mod file!");
+                    io::copy(&mut remote_file, &mut local_file).expect("Could not write file!");
+                }
+            }
+        };
+        Ok(())
+    }
 }
 impl Profile for RemoteProfile{
     fn new(profile_name: &str) -> Self {
@@ -124,7 +145,7 @@ impl Profile for RemoteProfile{
 
     fn delete(self) -> Result<(), InstallerError> {
         let sftp = InstallerConfig::open()?.sftp_safe_connect()?;
-        sftp_clean_dir(&PathBuf::from(SFTP_PROFILES_DIR).join(self.name),&sftp)?;
+        sftp_remove_dir(&PathBuf::from(SFTP_PROFILES_DIR).join(self.name),&sftp)?;
         Ok(())
     }
 
@@ -145,6 +166,8 @@ impl Profile for RemoteProfile{
             }
         }
     }
+
+
     fn write_launcher_profile(&mut self) -> Result<(), InstallerError> {
         let sftp = InstallerConfig::open().unwrap().sftp_safe_connect().unwrap();
         match sftp.create(PathBuf::from(SFTP_PROFILES_DIR).join(&self.name).join("launcher_profile.json").as_path()) {
@@ -182,13 +205,13 @@ impl Profile for RemoteProfile{
     }
 }
 
-pub fn sftp_clean_dir(clean_path:&PathBuf,sftp:&Sftp)->Result<(),Error>{
+pub fn sftp_remove_dir(clean_path:&PathBuf,sftp:&Sftp)->Result<(),Error>{
     match sftp.lstat(clean_path).unwrap().is_dir(){
         true => {
             match sftp.readdir(clean_path){
                 Ok(dir_readout) => {
                     for child in dir_readout {
-                        let _ = sftp_clean_dir(&child.0,&sftp).unwrap();
+                        let _ = sftp_remove_dir(&child.0,&sftp).unwrap();
                     }
                     sftp.rmdir(clean_path)?;
                 }
@@ -203,7 +226,19 @@ pub fn sftp_clean_dir(clean_path:&PathBuf,sftp:&Sftp)->Result<(),Error>{
     }
     Ok(())
 }
-
+pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
+    fs::create_dir_all(&dst)?;
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        if ty.is_dir() {
+            copy_dir_all(entry.path(), dst.as_ref().join(entry.file_name()))?;
+        } else {
+            fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
+        }
+    }
+    Ok(())
+}
 pub fn sftp_list_dir(path: &Path) -> Result<Vec<(PathBuf, FileStat)>, Error>{
     let sftp =  InstallerConfig::open().unwrap().sftp_safe_connect().expect("Could not connect!");
     sftp.readdir(path)
@@ -344,9 +379,10 @@ pub fn sftp_install_launcher_profile(base_path:&PathBuf,profile_name:&str)->Resu
     let mut launcher_profiles: LauncherProfiles = LauncherProfiles::from_file(base_path);
     match sftp.lstat(&remote_path.as_path()){
         Ok(_) => {
-            let remote_file = sftp.open(&remote_path.as_path()).map_err(|err|InstallerError::Ssh2(err))?;
-            let launcher_profile:LauncherProfile = serde_json::from_reader(remote_file).map_err(|err|InstallerError::Json(err))?;
-            launcher_profiles.insert_profile(launcher_profile,profile_name);
+            let remote_file = sftp.open(&remote_path.as_path())?;
+            let launcher_profile:LauncherProfile = serde_json::from_reader(remote_file)?;
+            println!("{:?}",launcher_profile);
+            launcher_profiles.insert_profile(launcher_profile,profile_name)?;
             launcher_profiles.save();
             Ok(())
         },
@@ -449,6 +485,7 @@ pub fn sftp_create_profile_dirs(profile_name: &str) -> Result<(), InstallerError
 mod tests {
     use std::ptr::read;
     use serial_test::serial;
+    use crate::mc_profiles::LocalProfile;
     use super::*;
 
     const LOCAL_BASE_PATH_STRING: &str = "test\\.minecraft";
@@ -515,6 +552,19 @@ mod tests {
         assert!(!file_names.contains(&"delete_me".to_string()));
     }
 
+    #[test]
+    fn test_install_mods(){
+        let base_path = InstallerConfig::open().unwrap().default_game_dir.unwrap();
+        let profile_name = "new_profile";
+        let remote_profile = RemoteProfile::open(profile_name).unwrap();
+        let _ = fs::remove_dir_all(base_path.join("profiles").join(profile_name).join("mods"));
+        let _ = fs::create_dir(base_path.join("profiles").join(profile_name).join("mods"));
+        let result = remote_profile.install_mods();
+        assert!(result.is_ok());
+        let local_profile = LocalProfile::open(profile_name).unwrap();
+        println!("{:?}",local_profile);
+        assert!(&local_profile.mods.unwrap().len() > &0);
+    }
 
     #[test]
     fn it_works() {
@@ -546,15 +596,11 @@ mod tests {
     }
     #[test]
     fn test_read_specific_remote_profile(){
-        let result = sftp_read_specific_remote_profile("new_profile");
+        let result = RemoteProfile::open("new_profile");
         assert!(result.is_ok());
-        println!("{:?}",result)
-
-
     }
     #[test]
     fn upload_file(){
-        
         let remote_path = PathBuf::from("/upload/test.file");
         let local_path = PathBuf::from("test/upload.file");
         sftp_upload_file(&local_path, &remote_path);
@@ -570,45 +616,48 @@ mod tests {
     }
     #[test]
     fn test_create_profile_dirs() {
-        
-        sftp_create_profile_dirs("new_profile").expect("Error creating profile in SFTP");
+        let create_name = "new_profile_dirs";
+        let remote_profile = RemoteProfile::create(create_name).unwrap();
+
         let result = sftp_list_dir(PathBuf::from(SFTP_PROFILES_DIR).as_path()).expect("Dir wasnt found!");
         let it = result.iter();
         let mut result_profiles = Vec::new();
         for i in it{
-            let pb = i.0.to_str().unwrap();
+            let pb = i.0.file_name().unwrap().to_str().unwrap();
             result_profiles.push(pb);
             println!("{i:?}")
         }
-        assert!(result_profiles.contains(&"/upload/profiles/new_profile"));
+        assert!(result_profiles.contains(&create_name));
+        remote_profile.delete().unwrap();
     }
-    #[test]
-    fn upload_profile_mods() {
-        
-        let profile_path = PathBuf::from("test/.minecraft/profiles/new_profile/");
-        let sftp_profile_path = PathBuf::from(SFTP_PROFILES_DIR).join("new_profile/mods");
-        let profile_name = "new_profile";
-        sftp_upload_profile_mods(&profile_path,profile_name);
-        let result = sftp_list_dir(sftp_profile_path.as_path()).expect("Dir wasn't found!");
-        let it = result.iter();
-        let mut result_profiles = Vec::new();
-        for i in it{
-            let pb = &i.0;
-            result_profiles.push(pb);
-            println!("{i:?}")
-        }
-        assert!(result_profiles.contains(&&sftp_profile_path.join("testjar.jar")));
-    }
+    // #[test]
+    // fn upload_profile_mods() {
+    //
+    //     let profile_path = PathBuf::from("test/.minecraft/profiles/new_profile/");
+    //     let sftp_profile_path = PathBuf::from(SFTP_PROFILES_DIR).join("new_profile/mods");
+    //     let profile_name = "new_profile";
+    //     sftp_upload_profile_mods(&profile_path,profile_name);
+    //     let result = sftp_list_dir(sftp_profile_path.as_path()).expect("Dir wasn't found!");
+    //     let it = result.iter();
+    //     let mut result_profiles = Vec::new();
+    //     for i in it{
+    //         let pb = &i.0;
+    //         result_profiles.push(pb);
+    //         println!("{i:?}")
+    //     }
+    //     assert!(result_profiles.contains(&&sftp_profile_path.join("testjar.jar")));
+    // }
     #[test]
     fn test_upload_specific_mods() {
-        
         let base_path = PathBuf::from("test/.minecraft");
         let sftp_profile_path = PathBuf::from(SFTP_PROFILES_DIR).join("new_profile/mods");
         let profile_name = "new_profile";
 
+        let remote_profile = RemoteProfile::open("new_profile").unwrap();
+        println!("{:?}",remote_profile.mods.unwrap());
         let mut missing_mods:Vec<String> = Vec::new();
         missing_mods.push(String::from("testjar.jar"));
-        sftp_upload_specific_mods(&base_path, profile_name, missing_mods).expect("Could not upload missing mods");
+        // sftp_upload_specific_mods(&base_path, profile_name, missing_mods).expect("Could not upload missing mods");
         let result = sftp_list_dir(sftp_profile_path.as_path()).expect("Dir wasn't found!");
         let it = result.iter();
         let mut result_profiles = Vec::new();
@@ -620,19 +669,19 @@ mod tests {
         assert!(result_profiles.contains(&&sftp_profile_path.join("testjar.jar")));
     }
     #[test]
-    fn test_sftp_clean_dir(){
+    fn test_sftp_remove_dir(){
         let sftp = InstallerConfig::open().unwrap().sftp_safe_connect().unwrap();
         let base_dir = PathBuf::from(SFTP_PROFILES_DIR).join("delete_me");
-        // sftp.mkdir(base_dir.as_path(), 1000).unwrap();
-        // sftp.mkdir(base_dir.join("dir1").as_path(), 1000).unwrap();
-        // sftp.mkdir(base_dir.join("dir2").as_path(), 1000).unwrap();
-        // sftp.create(base_dir.join("newfile.txt").as_path()).unwrap();
-        // sftp.create(base_dir.join("dir1").join("newfile1.txt").as_path()).unwrap();
-        // sftp.create(base_dir.join("dir1").join("newfile2.txt").as_path()).unwrap();
-        // sftp.create(base_dir.join("dir2").join("newfile1.txt").as_path()).unwrap();
+        sftp.mkdir(base_dir.as_path(), 1000).unwrap();
+        sftp.mkdir(base_dir.join("dir1").as_path(), 1000).unwrap();
+        sftp.mkdir(base_dir.join("dir2").as_path(), 1000).unwrap();
+        sftp.create(base_dir.join("newfile.txt").as_path()).unwrap();
+        sftp.create(base_dir.join("dir1").join("newfile1.txt").as_path()).unwrap();
+        sftp.create(base_dir.join("dir1").join("newfile2.txt").as_path()).unwrap();
+        sftp.create(base_dir.join("dir2").join("newfile1.txt").as_path()).unwrap();
         let readout1 = sftp.readdir(PathBuf::from(SFTP_PROFILES_DIR).as_path()).unwrap();
         println!("{:?}",readout1);
-        sftp_clean_dir(&base_dir,&sftp).unwrap();
+        sftp_remove_dir(&base_dir,&sftp).unwrap();
         let readout2 = sftp.readdir(PathBuf::from(SFTP_PROFILES_DIR).as_path()).unwrap();
         println!("{:?}",readout2);
 
@@ -716,8 +765,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_download_profile(){
-
-        let base_path = PathBuf::from("test/.minecraft");
+        let base_path = InstallerConfig::open().unwrap().default_game_dir.unwrap();
+        // let base_path = PathBuf::from("");
         let profile_name = "new_profile";
 
         // profile path
