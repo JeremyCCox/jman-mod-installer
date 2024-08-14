@@ -11,8 +11,7 @@ function InstallerLauncher() {
     const [loading,setLoading] = useState(false)
     const accessQuery=useQuery("login",async () => {
         return invoke("attempt_remote_connection_config").then((res)=>{
-            console.log(res)
-            return{success:true}
+            return{success:res}
         }).catch(err=>{
             console.log(err)
         });
@@ -20,7 +19,7 @@ function InstallerLauncher() {
     const configQuery:UseQueryResult<InstallerProfile> = useQuery(["config"],async () => {
         return await invoke("read_installer_config");
     },
-        {enabled:accessQuery.data?accessQuery.data.success:false}
+        {enabled:!!accessQuery.data}
     )
     useEffect(()=>{
         console.log(accessQuery)
@@ -36,7 +35,9 @@ function InstallerLauncher() {
         setLoading(true)
         await queryClient.invalidateQueries("login")
         // console.log(config)
-        await invoke("attempt_remote_connection_new",{installerConfig:config})
+        await invoke("attempt_remote_connection_new",{installerConfig:config}).catch(err=>{
+            console.error(err)
+        })
         await queryClient.refetchQueries("login")
         return
     }
@@ -56,11 +57,20 @@ function InstallerLauncher() {
                         Attempting login
                     </h3>
                 </div>
+
                     :
-                accessQuery.data?
+                accessQuery.data?.success?
                     <InstallerBase/>
                     :
                     configQuery.data?
+                        !accessQuery.data?.success?
+                            <>
+                                <h3 className={'absolute text-4xl top-[8vh] text-center w-full text-red-500 animate-pulse'}>
+                                    Could not contact SFTP Server
+                                </h3>
+                                <UserLogin handleSubmit={handleSubmit} loading={loading} config={configQuery.data}/>
+                            </>
+                            :
                             <UserLogin handleSubmit={handleSubmit} loading={loading} config={configQuery.data}/>
                         :
                             <UserLogin handleSubmit={handleSubmit} loading={loading} />

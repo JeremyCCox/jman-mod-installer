@@ -3,92 +3,68 @@
 
 use std::path::{PathBuf};
 use serde_json::{json, Value};
-use crate::sftp::{RemoteProfile, sftp_download_specific_mods, sftp_install_profile, sftp_list_dir, sftp_read_remote_profiles, sftp_read_specific_remote_profile, sftp_upload_profile, sftp_upload_specific_mods};
-use crate::mc_profiles::{copy_local_profile, create_profile, InstallerConfig, open_profile_location};
+use crate::sftp::{ RemoteProfile, sftp_list_dir, sftp_read_remote_profiles};
+use crate::mc_profiles::{InstallerConfig, LocalProfile, open_profile_location, Profile};
 
 mod sftp;
 mod mc_profiles;
 
 #[tauri::command]
 fn read_installer_config()->Result<InstallerConfig,String>{
-    match InstallerConfig::open(){
-        Ok(config) => { Ok(config) }
-        Err(_) => {Err("Could not open installer config!".parse().unwrap())}
-    }
+   Ok(InstallerConfig::open()?)
 }
 
 #[tauri::command]
 fn write_installer_config(installer_config: InstallerConfig)-> Result<(), String>{
     println!("{:?}",installer_config);
-    match installer_config.save_config(){
-        Ok(_)=>Ok(()),
-        Err(_)=>Err("could not write to config file!".parse().unwrap())
-    }
+    Ok(installer_config.save_config()?)
 }
 
 
 
 #[tauri::command(async)]
 fn attempt_remote_connection_config()->Result<bool,String>{
-    let installer_config = match InstallerConfig::open(){
-        Ok(installer_config) => { installer_config }
-        Err(_) => {
-            return Err("Could not open installer config!".parse().unwrap())
-        }
-    };
-    match installer_config.sftp_safe_connect() {
-        Ok(_) => {
-            Ok(true)
-        }
-        Err(_) => {
-            Err("Could not connect with provided information!".parse().unwrap())
-        }
-    }
+    let installer_config =  InstallerConfig::open()?;
+    Ok(installer_config.sftp_safe_connect().is_ok())
 }
 #[tauri::command(async)]
-fn attempt_remote_connection_new(installer_config: InstallerConfig)->Result<(),String>{
-    match &installer_config.sftp_safe_connect() {
+fn attempt_remote_connection_new(installer_config: InstallerConfig)->Result<bool,String>{
+    match &installer_config.sftp_safe_connect(){
         Ok(_) => {
             let _ = installer_config.save_config();
-            Ok(())
+            Ok(true)
         }
-        Err(_) => {
-            Err("Could not connect with provided information!".parse().unwrap())
+        Err(err) => {
+            // Ok(false)
+            Err(err.to_string())
         }
     }
 }
 #[tauri::command(async)]
 fn clear_installer_config()->Result<(),String>{
-    match InstallerConfig::clear(){
-        Ok(_) => Ok(()),
-        Err(_) => {
-            Err("Could not delete current config!".parse().unwrap())
-        }
-    }
+    Ok(InstallerConfig::clear()?)
 }
-// #[tauri::command(async)]
-// fn delete_local_profile()->Result<(),String>{
-//
-// }
 
 #[tauri::command(async)]
-fn download_sftp_profile(base_path:&str,profile_name:&str)->Result<(),String>{
-    println!("{:?}",base_path);
-    match sftp_install_profile(&PathBuf::from(base_path),profile_name){
-        Ok(_) => Ok(()),
-        Err(_) => {
-            Err("Could not install profile mods".parse().unwrap())
-        }
-    }
+fn download_sftp_profile(profile_name:&str)->Result<(),String>{
+    let remote_profile =RemoteProfile::open(profile_name)?;
+    remote_profile.install_profile()?;
+    Ok(())
 }
 #[tauri::command(async)]
-fn install_missing_mods(base_path:&str,profile_name:&str,missing_mods:Vec<String>)->Result<(),String>{
-    match sftp_download_specific_mods(&PathBuf::from(base_path),profile_name,missing_mods) {
-        Ok(_) => Ok(()),
-        Err(_) => {
-            Err("Could not open profile location!".parse().unwrap())
-        }
-    }
+fn delete_local_profile(profile_name:&str)->Result<(),String>{
+    let local_profile = LocalProfile::open(profile_name)?;
+    Ok(local_profile.delete()?)
+}
+
+#[tauri::command(async)]
+fn install_missing_mods(profile_name:&str,mods_list:Vec<&str>)->Result<(),String>{
+    Ok(LocalProfile::open(profile_name).unwrap().install_mods(mods_list)?)
+}
+#[tauri::command(async)]
+fn install_specified_mods(profile_name:&str,mods_list:Vec<&str>)->Result<(),String>{
+    let mut local_profile = LocalProfile::open(profile_name).unwrap();
+    Ok(local_profile.install_mods(mods_list)?)
 }
 #[tauri::command(async)]
 fn read_sftp_dir() -> Result<Value,String> {
@@ -98,7 +74,7 @@ fn read_sftp_dir() -> Result<Value,String> {
 #[tauri::command(async)]
 fn read_profile_names()->Result<Vec<String>,String>{
     let mut profile_names:Vec<String> = Vec::new();
-    let sftp_dir = sftp_list_dir(&PathBuf::from("upload/profiles/")).or_else(|err|{Err("Could not list Profiles")}).unwrap();
+    let sftp_dir = sftp_list_dir(&PathBuf::from("upload/profiles/")).unwrap();
     for x in sftp_dir {
         if x.1.is_dir(){
             profile_names.push(x.0.file_name().unwrap().to_os_string().into_string().unwrap())
@@ -108,65 +84,38 @@ fn read_profile_names()->Result<Vec<String>,String>{
 }
 #[tauri::command(async)]
 fn read_specific_remote_profile(profile_name:&str)->Result<RemoteProfile,String>{
-    match sftp_read_specific_remote_profile(profile_name){
-        Ok(profile) => {Ok(profile)}
-        Err(_) => {Err("Could not read remote profile!".parse().unwrap())}
-    }
+    Ok(RemoteProfile::open(profile_name)?)
 }
 #[tauri::command(async)]
-fn upload_sftp_dir(base_path:&str,profile_name:&str)->Result<(),String>{
-    match sftp_upload_profile(&PathBuf::from(base_path),profile_name){
-        Ok(_) => {
-            Ok(())
-        }
-        Err(error) => {
-            Err(error.to_string().into())
-        }
-    }
+fn read_specific_local_profile(profile_name:&str)->Result<LocalProfile,String> {
+    Ok(LocalProfile::open(profile_name)?)
 }
 #[tauri::command(async)]
-fn upload_additional_mods(base_path:&str,profile_name:&str,missing_mods:Vec<String>)->Result<(),String>{
-    match sftp_upload_specific_mods(&PathBuf::from(base_path),profile_name,missing_mods) {
-        Ok(_) => Ok(()),
-        Err(_) => {
-            Err("Could not upload those mods!".parse().unwrap())
-        }
-    }
+fn upload_local_profile(profile_name:&str)->Result<(),String>{
+    let local_profile = LocalProfile::open(profile_name).unwrap();
+    Ok(local_profile.upload_profile()?)
+}
+#[tauri::command(async)]
+fn upload_additional_mods(profile_name:&str,mods_list:Vec<String>)->Result<(),String>{
+    let local_profile = LocalProfile::open(profile_name)?;
+    Ok(local_profile.upload_mods(mods_list)?)
 }
 
 #[tauri::command(async)]
-fn profile_location(base_path:&str,profile_name:&str)->Result<(),String>{
-    let profile_path = PathBuf::from(base_path);
-    match open_profile_location(&profile_path,profile_name){
-        Ok(_) => {
-            Ok(())
-        }
-        Err(_) => {
-            Err("Could not open profile location!".parse().unwrap())
-        }
-    }
+fn profile_location(profile_name:&str)->Result<(),String>{
+    Ok(open_profile_location(profile_name)?)
 }
 #[tauri::command(async)]
-fn create_new_profile(base_path:&str,profile_name:&str)->Result<(),String>{
-    match create_profile(&PathBuf::from(base_path),profile_name){
-        Ok(_) => {
-            Ok(())
-        }
-        Err(_) => {
-            Err("Could not open profile location!".parse().unwrap())
-        }
-    }
+fn create_new_profile(profile_name:&str)->Result<LocalProfile,String>{
+    Ok(LocalProfile::create(profile_name)?)
 }
 #[tauri::command(async)]
-fn copy_profile(base_path:&str,profile_name:&str,copy_name:&str)->Result<(),String>{
-    match copy_local_profile(base_path,profile_name,copy_name){
-        Ok(_) => {
-            Ok(())
-        }
-        Err(_) => {
-            Err("Could not open profile location!".parse().unwrap())
-        }
-    }
+fn copy_local_profile(profile_name:&str,copy_name:&str)->Result<LocalProfile,String>{
+    Ok(LocalProfile::open(profile_name)?.copy(copy_name)?)
+}
+#[tauri::command(async)]
+fn copy_remote_profile(profile_name:&str,copy_name:&str)->Result<RemoteProfile,String>{
+    Ok(RemoteProfile::open(profile_name)?.copy(copy_name)?)
 }
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -175,13 +124,15 @@ fn greet(name: &str) -> String {
 fn main() {
   tauri::Builder::default()
       .invoke_handler(tauri::generate_handler![
-          upload_sftp_dir,
+          upload_local_profile,
           read_sftp_dir,
           greet,
           download_sftp_profile,
           profile_location,
           create_new_profile,
+          clear_installer_config,
           install_missing_mods,
+          install_specified_mods,
           upload_additional_mods,
           read_installer_config,
           write_installer_config,
@@ -189,6 +140,10 @@ fn main() {
           attempt_remote_connection_new,
           read_profile_names,
           read_specific_remote_profile,
+          read_specific_local_profile,
+          delete_local_profile,
+          copy_local_profile,
+          copy_remote_profile,
       ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

@@ -14,7 +14,7 @@ export default function RemoteProfileInfo({profileName,setMessage,installed, pat
         setLoading(true)
         console.log(e.currentTarget.name);
         // @ts-ignore
-        invoke('download_sftp_profile', {basePath: path, profileName: e.currentTarget.name}).then((res:string)=>{
+        invoke('download_sftp_profile', {profileName: e.currentTarget.name}).then((res:string)=>{
             queryClient.invalidateQueries("profiles")
             setMessage(res)
         }).catch((err:string)=>{

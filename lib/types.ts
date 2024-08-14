@@ -9,6 +9,13 @@ export interface RemoteProfile{
     name:string,
     mods?:[string],
     launcher_profile?:LauncherProfile;
+    resource_packs?:[string],
+}
+export interface LocalProfile{
+    name:string,
+    mods?:[string],
+    launcher_profile?:LauncherProfile;
+    resource_packs?:[string],
 }
 export interface InstallerProfile{
     defaultGameDir:string,

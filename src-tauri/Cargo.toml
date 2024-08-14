@@ -22,6 +22,7 @@ serde = "1.0.204"
 chrono = { version= "0.4.38", features = ["serde"] }
 serial_test = "3.1.1"
 log = "0.4.22"
+thiserror = "1.0.63"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem and the built-in dev server is disabled.
