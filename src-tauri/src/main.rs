@@ -3,11 +3,21 @@
 
 use std::path::{PathBuf};
 use serde_json::{json, Value};
-use crate::sftp::{ RemoteProfile, sftp_list_dir, sftp_read_remote_profiles};
-use crate::mc_profiles::{InstallerConfig, LocalProfile, open_profile_location, Profile};
+
+
+use crate::installer::{InstallerConfig};
+use crate::mc_profiles::open_profile_location;
+use crate::profiles::local_profile::LocalProfile;
+use crate::profiles::Profile;
+use crate::sftp::{ sftp_list_dir, sftp_read_remote_profiles};
+use crate::profiles::remote_profile::RemoteProfile;
 
 mod sftp;
 mod mc_profiles;
+mod profiles;
+
+mod launcher;
+mod installer;
 
 #[tauri::command]
 fn read_installer_config()->Result<InstallerConfig,String>{
