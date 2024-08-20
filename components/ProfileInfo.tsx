@@ -47,7 +47,7 @@ export default function ProfileInfo({path}:Readonly<{path:string}>){
             if(!profiles_exists){
                 await createDir(`${path}/profiles`)
             }
-            let remote_profiles = (await invoke<[string]>("read_profile_names"))
+            let remote_profiles = (await invoke<[string]>("list_remote_profiles"))
             let local_profiles  = (await readDir(`${path}/profiles`,{recursive:false})).map(local=>{
                 return(local.name||crypto.randomUUID())
             })
@@ -111,7 +111,9 @@ export default function ProfileInfo({path}:Readonly<{path:string}>){
                 {profileInfo.data&&
                     profileInfo.data.local_profiles.map(profile=>{
                         return(
-                            <LocalProfile key={profile} profileName={profile} path={path}/>
+                            <div className={"w-1/2 min-w-64 lg:min-w-1/4 lg:w-1/4 h-50 px-4 flex flex-col py-8 border-b-black border-b-4"}>
+                                <LocalProfile key={profile} profileName={profile} path={path}/>
+                            </div>
                         )
                     })
                 }

@@ -1,5 +1,3 @@
-import {Simulate} from "react-dom/test-utils";
-import load = Simulate.load;
 import LoadingSpinner from "./LoadingSpinner.tsx";
 
 export default function ModDiscrepancies({modlist,notice, callback,callbackTitle,loading=false}:Readonly<{modlist:string[],notice:string,callback:any,callbackTitle:string,loading?:boolean}>){
