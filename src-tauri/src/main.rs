@@ -1,11 +1,13 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::fs;
 use std::path::{PathBuf};
 use serde_json::{json, Value};
 
 
 use crate::installer::{InstallerConfig};
+use crate::launcher::LauncherProfiles;
 use crate::mc_profiles::open_profile_location;
 use crate::profiles::local_profile::LocalProfile;
 use crate::profiles::Profile;
@@ -82,7 +84,21 @@ fn read_sftp_dir() -> Result<Value,String> {
     Ok(json!(list_dir))
 }
 #[tauri::command(async)]
-fn read_profile_names()->Result<Vec<String>,String>{
+fn list_local_profiles()->Result<Vec<String>,String>{
+    let readout = fs::read_dir(InstallerConfig::open()?.default_game_dir.unwrap().join("profiles")).unwrap();
+    let mut profiles_list= Vec::new();
+    let launcher_profiles = LauncherProfiles::open();
+    for x in readout {
+        let name = x.unwrap().file_name().into_string().unwrap();
+        if launcher_profiles.profiles.contains_key(&name){
+            profiles_list.push(name)
+        }
+    }
+    println!("{:?}",profiles_list);
+    Ok(profiles_list)
+}
+#[tauri::command(async)]
+fn list_remote_profiles()->Result<Vec<String>,String>{
     let mut profile_names:Vec<String> = Vec::new();
     let sftp_dir = sftp_list_dir(&PathBuf::from("upload/profiles/")).unwrap();
     for x in sftp_dir {
@@ -148,7 +164,8 @@ fn main() {
           write_installer_config,
           attempt_remote_connection_config,
           attempt_remote_connection_new,
-          read_profile_names,
+          list_local_profiles,
+          list_remote_profiles,
           read_specific_remote_profile,
           read_specific_local_profile,
           delete_local_profile,
