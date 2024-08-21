@@ -32,8 +32,6 @@ fn write_installer_config(installer_config: InstallerConfig)-> Result<(), String
     Ok(installer_config.save_config()?)
 }
 
-
-
 #[tauri::command(async)]
 fn attempt_remote_connection_config()->Result<bool,String>{
     let installer_config =  InstallerConfig::open()?;
