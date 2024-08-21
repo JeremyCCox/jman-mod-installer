@@ -1,9 +1,9 @@
 import {useQuery} from "react-query";
 import {dataDir, homeDir} from "@tauri-apps/api/path";
 import {readDir, exists, FileEntry} from "@tauri-apps/api/fs";
-import ProfileInfo from "../ProfileInfo.tsx";
 import {invoke} from "@tauri-apps/api";
-import RemoteInfo from "../RemoteInfo.tsx";
+import ProfileDisplay from "../profiles/ProfileDisplay.tsx";
+import ProfileLists from "../profiles/ProfileLists.tsx";
 
 export default function MinecraftFinder({osType}:{osType:string}){
     // @ts-ignore
@@ -44,8 +44,12 @@ export default function MinecraftFinder({osType}:{osType:string}){
                         {/*Minecraft file found at {pathInfo.data.defaultPath}*/}
                         {pathInfo.data.defaultPath&&
                             <>
-                                <ProfileInfo path={pathInfo.data.defaultPath}/>
-                                <RemoteInfo path={pathInfo.data.defaultPath}/>
+                                <div className={'flex'}>
+                                    <ProfileLists/>
+                                    <ProfileDisplay/>
+                                </div>
+                                {/*<ProfileInfo path={pathInfo.data.defaultPath}/>*/}
+                                {/*<RemoteInfo path={pathInfo.data.defaultPath}/>*/}
                                 {/*<MinecraftVersions path={pathInfo.data.defaultPath}/>*/}
                             </>
                         }

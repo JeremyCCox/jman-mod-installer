@@ -39,7 +39,7 @@ export default function RemoteInfo({path}:Readonly<{path:string}>){
             if(!profiles_exists){
                 await createDir(`${path}/profiles`)
             }
-            let remote_profiles = (await invoke<[string]>("read_profile_names"))
+            let remote_profiles = (await invoke<[string]>("list_remote_profiles"))
             let local_profiles  = (await readDir(`${path}/profiles`,{recursive:false})).map(local=>{
                 return(local.name)
             })

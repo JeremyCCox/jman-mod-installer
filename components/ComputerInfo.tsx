@@ -14,7 +14,7 @@ export default function ComputerInfo(){
         console.log(await invoke("read_installer_config"))
     }
     const customFunc=async ()=>{
-        console.log(await invoke("read_profile_names"))
+        console.log(await invoke("list_remote_profiles"))
     }
 
     return(
