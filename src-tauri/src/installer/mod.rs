@@ -144,7 +144,7 @@ impl InstallerConfig{
                 }
             }
         }
-        sess.userauth_password(&self.sftp_username.clone().unwrap(), &self.sftp_password.clone().unwrap()).expect("Auth failed");
+        sess.userauth_password(&self.sftp_username.clone().unwrap(), &self.sftp_password.clone().unwrap())?;
         match sess.sftp() {
             Ok(sftp) => Ok(sftp),
             Err(error) => Err(InstallerError::from(error))
@@ -158,6 +158,14 @@ impl InstallerConfig{
                     break Ok(sftp)
                 }
                 Err(err) => {
+                    match &err {
+                        InstallerError::Ssh2(ssh2) => {
+                            if ssh2.code().to_string().eq("Session(-18)"){
+                             break Err(err)
+                            }
+                        }
+                        _ => {}
+                    }
                     i += 1;
                     if i == 4{
                         break Err(err)
