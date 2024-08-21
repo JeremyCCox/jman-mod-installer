@@ -1,8 +1,10 @@
 use std::fs::File;
 use std::{fs, io};
 use std::io::Write;
-use std::net::TcpStream;
+use std::net::{IpAddr, Ipv4Addr, TcpStream, ToSocketAddrs};
 use std::path::PathBuf;
+use std::str::FromStr;
+use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use ssh2::{Session, Sftp};
 
@@ -124,7 +126,9 @@ impl InstallerConfig{
     }
     pub fn sftp_connect(&self)->Result<Sftp,InstallerError>{
         let address = format!("{}:{}",&self.sftp_server.clone().unwrap(),&self.sftp_port.clone().unwrap());
-        let tcp = TcpStream::connect(address)?;
+        let resolved_addresses:Vec<_> = address.to_socket_addrs().expect("Unable to resolve domain")
+            .collect();
+        let tcp = TcpStream::connect_timeout(resolved_addresses.get(0).unwrap(),Duration::new(25,0))?;
 
         let mut sess = Session::new().expect("Could not open session!");
 
@@ -153,6 +157,7 @@ impl InstallerConfig{
     pub fn sftp_safe_connect(&self)->Result<Sftp,InstallerError>{
         let mut i:usize  = 0;
         return loop{
+            println!("Running connect {} time",i);
             match self.sftp_connect() {
                 Ok(sftp) => {
                     break Ok(sftp)
