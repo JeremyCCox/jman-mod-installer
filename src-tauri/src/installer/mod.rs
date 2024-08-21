@@ -157,7 +157,6 @@ impl InstallerConfig{
     pub fn sftp_safe_connect(&self)->Result<Sftp,InstallerError>{
         let mut i:usize  = 0;
         return loop{
-            println!("Running connect {} time",i);
             match self.sftp_connect() {
                 Ok(sftp) => {
                     break Ok(sftp)
