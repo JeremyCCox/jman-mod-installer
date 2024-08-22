@@ -1,8 +1,8 @@
 import {createContext, ReactNode, useContext} from "react";
 import {useQuery, useQueryClient, UseQueryResult} from "react-query";
 import {invoke} from "@tauri-apps/api";
-import {InstallerProfile} from "@my-types/*";
 import {Navigate} from "react-router-dom";
+import {InstallerProfile} from "../../lib/types.ts";
 
 const ConfigContext = createContext({});
 
@@ -17,18 +17,21 @@ export function ConfigProvider({children}:Readonly<{ children?:ReactNode }>){
         });
     })
 
-    const configQuery:UseQueryResult<InstallerProfile> = useQuery(["config"],async () => {
+    const configQuery:UseQueryResult<InstallerProfile> = useQuery("config",async () => {
             return await invoke("read_installer_config");
         },
         // {enabled:!!accessQuery.data}
     )
     const logout = async ()=>{
+        await queryClient.invalidateQueries("config")
         await queryClient.invalidateQueries("login")
         let config ={} as InstallerProfile;
         await invoke("write_installer_config",{installerConfig:config}).catch(err=>{
             console.error(err)
         })
+        await queryClient.refetchQueries("config")
         await queryClient.refetchQueries("login")
+
     }
     const updateConfig = async (config:InstallerProfile)=>{
         await queryClient.invalidateQueries("login")
