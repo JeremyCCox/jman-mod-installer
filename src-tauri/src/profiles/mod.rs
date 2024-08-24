@@ -50,6 +50,7 @@ pub trait Profile{
     fn copy (self,copy_name:&str)->Result<Self,InstallerError> where Self: Sized;
     fn delete(self)->Result<(),InstallerError>;
     fn read_mods(&mut self)->Result<(),InstallerError>;
+    fn read_resource_packs(&mut self)->Result<(),InstallerError>;
     fn write_launcher_profile(&mut self)->Result<(),InstallerError>;
     fn read_launcher_profile(&mut self)->Result<(),InstallerError>;
     fn rename_profile(&mut self,new_name:&str)->Result<(),InstallerError>;

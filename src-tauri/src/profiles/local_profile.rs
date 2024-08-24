@@ -5,6 +5,7 @@ use crate::installer::{InstallerConfig, InstallerError};
 use crate::launcher::{LauncherProfile, LauncherProfiles};
 use crate::profiles::{Profile, SFTP_PROFILES_DIR};
 use crate::profiles::remote_profile::RemoteProfile;
+use crate::resource_packs::ResourcePack;
 use crate::sftp::{copy_dir_all, sftp_list_dir};
 
 #[derive(Serialize,Deserialize,Debug,Clone)]
@@ -13,7 +14,7 @@ pub struct LocalProfile{
     pub name:String,
     pub mods:Option<Vec<String>>,
     pub launcher_profile:Option<LauncherProfile>,
-    pub resource_packs:Option<Vec<String>>,
+    pub resource_packs:Option<Vec<ResourcePack>>,
     pub config:Option<Vec<String>>
 }
 
@@ -103,6 +104,7 @@ impl Profile for LocalProfile{
         // let installer_config = InstallerConfig::open()?;
         let mut profile = Self::new(profile_name);
         profile.read_mods()?;
+        profile.read_resource_packs()?;
         profile.read_launcher_profile()?;
         Ok(profile)
     }
@@ -136,6 +138,20 @@ impl Profile for LocalProfile{
             mod_names.push(entry);
         };
         self.mods = Some(mod_names);
+        Ok(())
+    }
+
+    fn read_resource_packs(&mut self) -> Result<(), InstallerError> {
+        let installer_config = InstallerConfig::open()?;
+        let profile_path = PathBuf::from(installer_config.default_game_dir.unwrap()).join("profiles").join(&self.name);
+        let mods = fs::read_dir(profile_path.join("resourcepacks").as_path())?;
+        let mut resource_packs = Vec::new();
+        for x in mods {
+            let entry = x.unwrap().file_name().to_str().unwrap().to_string();
+            let rp = ResourcePack::open_local(entry)?;
+            resource_packs.push(rp);
+        };
+        self.resource_packs = Some(resource_packs);
         Ok(())
     }
 
@@ -188,6 +204,14 @@ mod test{
         let profile_name = "new_profile";
         let new_profile = LocalProfile::new(profile_name);
         assert_eq!(new_profile.name, profile_name)
+    }
+    #[test]
+    fn test_read_resource_packs(){
+        let profile_name = "new_profile";
+        let mut new_profile = LocalProfile::new(profile_name);
+        let result =new_profile.read_resource_packs();
+        assert!( result.is_ok());
+        assert_eq!(new_profile.resource_packs.unwrap().len(),2)
     }
     #[test]
     #[serial]

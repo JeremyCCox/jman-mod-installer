@@ -20,6 +20,7 @@ mod profiles;
 
 mod launcher;
 mod installer;
+mod resource_packs;
 
 #[tauri::command]
 fn read_installer_config()->Result<InstallerConfig,String>{
