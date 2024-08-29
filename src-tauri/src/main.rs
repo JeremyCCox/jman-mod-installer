@@ -6,13 +6,14 @@ use std::path::{PathBuf};
 use serde_json::{json, Value};
 
 
-use crate::installer::{InstallerConfig};
+use crate::installer::{InstallerConfig, InstallerError};
 use crate::launcher::LauncherProfiles;
 use crate::mc_profiles::open_profile_location;
 use crate::profiles::local_profile::LocalProfile;
 use crate::profiles::Profile;
 use crate::sftp::{ sftp_list_dir, sftp_read_remote_profiles};
 use crate::profiles::remote_profile::RemoteProfile;
+use crate::resource_packs::{PackManager, ResourcePack};
 
 mod sftp;
 mod mc_profiles;
@@ -109,11 +110,16 @@ fn list_remote_profiles()->Result<Vec<String>,String>{
 }
 #[tauri::command(async)]
 fn read_specific_remote_profile(profile_name:&str)->Result<RemoteProfile,String>{
+    println!("Heah");
     Ok(RemoteProfile::open(profile_name)?)
 }
 #[tauri::command(async)]
 fn read_specific_local_profile(profile_name:&str)->Result<LocalProfile,String> {
     Ok(LocalProfile::open(profile_name)?)
+}
+#[tauri::command(async)]
+fn read_remote_resource_packs()->Result<Vec<ResourcePack>,InstallerError>{
+    Ok(PackManager::read_remote_packs()?)
 }
 #[tauri::command(async)]
 fn upload_local_profile(profile_name:&str)->Result<(),String>{
@@ -167,6 +173,7 @@ fn main() {
           list_remote_profiles,
           read_specific_remote_profile,
           read_specific_local_profile,
+          read_remote_resource_packs,
           delete_local_profile,
           copy_local_profile,
           copy_remote_profile,

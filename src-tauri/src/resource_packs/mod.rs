@@ -1,5 +1,6 @@
 use std::{fs, io};
 use std::convert::Into;
+use std::ffi::{OsStr, OsString};
 use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::str::Matches;
@@ -9,6 +10,29 @@ use crate::installer::{InstallerConfig, InstallerError};
 use crate::sftp::sftp_list_dir;
 
 const SFTP_RESOURCE_PACKS_PATH: &str ="/upload/resource_packs";
+
+pub struct PackManager{
+
+}
+
+impl PackManager{
+    pub fn new()->Self{
+        return Self{};
+    }
+
+    pub fn read_remote_packs()->Result<Vec<ResourcePack>,InstallerError>{
+        let sftp = InstallerConfig::open().unwrap().sftp_safe_connect().unwrap();
+        let remote_path = PathBuf::from(SFTP_RESOURCE_PACKS_PATH);
+        let mut packs:Vec<ResourcePack> = Vec::new();
+        let val = sftp.readdir(remote_path.as_path())?;
+        for x in val {
+            if(x.1.is_dir()){
+                packs.push(ResourcePack::open_remote(x.0.file_name().unwrap().to_str().unwrap())?)
+            }
+        }
+        Ok(packs)
+    }
+}
 #[derive(Serialize,Deserialize,Debug,Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ResourcePack{
@@ -102,7 +126,7 @@ mod tests{
     use std::path::PathBuf;
     use crate::installer::InstallerConfig;
     use crate::profiles::{Profile};
-    use crate::resource_packs::{ResourcePack, SFTP_RESOURCE_PACKS_PATH};
+    use crate::resource_packs::{PackManager, ResourcePack, SFTP_RESOURCE_PACKS_PATH};
     use crate::sftp::sftp_list_dir;
 
     #[test]
@@ -132,6 +156,14 @@ mod tests{
         assert_eq!(nerp.file_name,"This does not exist.zip");
         assert_eq!(nerp.name,"This does not exist")
 
+    }
+    #[test]
+    fn test_read_remote_packs(){
+        let result = PackManager::read_remote_packs();
+        dbg!(&result);
+        assert!(result.is_ok());
+        let remote_paths = result.unwrap();
+        dbg!(remote_paths);
     }
     #[test]
     fn test_upload_resource_pack(){
