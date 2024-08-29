@@ -131,7 +131,7 @@ impl Profile for RemoteProfile{
                 let mut profile = Self::new(profile_name);
                 profile.read_mods()?;
                 profile.read_launcher_profile()?;
-                profile.save_profile();
+                let _ = profile.save_profile();
                 Ok(profile)
             }
         }

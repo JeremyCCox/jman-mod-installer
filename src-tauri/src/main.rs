@@ -68,7 +68,6 @@ fn delete_local_profile(profile_name:&str)->Result<(),String>{
     let local_profile = LocalProfile::open(profile_name)?;
     Ok(local_profile.delete()?)
 }
-
 #[tauri::command(async)]
 fn install_missing_mods(profile_name:&str,mods_list:Vec<&str>)->Result<(),String>{
     Ok(LocalProfile::open(profile_name).unwrap().install_mods(mods_list)?)
@@ -77,6 +76,16 @@ fn install_missing_mods(profile_name:&str,mods_list:Vec<&str>)->Result<(),String
 fn install_specified_mods(profile_name:&str,mods_list:Vec<&str>)->Result<(),String>{
     let mut local_profile = LocalProfile::open(profile_name).unwrap();
     Ok(local_profile.install_mods(mods_list)?)
+}
+#[tauri::command(async)]
+fn install_resource_pack(profile_name:&str,pack_name:&str)->Result<(),String>{
+    let local_profile = LocalProfile::open(profile_name)?;
+    Ok(local_profile.add_resource_pack(pack_name)?)
+}
+#[tauri::command(async)]
+fn remove_local_resource_pack(profile_name:&str,pack_name:&str)->Result<(),String>{
+    let local_profile = LocalProfile::open(profile_name)?;
+    Ok(local_profile.delete_resource_pack(pack_name)?)
 }
 #[tauri::command(async)]
 fn read_sftp_dir() -> Result<Value,String> {
@@ -164,6 +173,8 @@ fn main() {
           clear_installer_config,
           install_missing_mods,
           install_specified_mods,
+          install_resource_pack,
+          remove_local_resource_pack,
           upload_additional_mods,
           read_installer_config,
           write_installer_config,

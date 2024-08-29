@@ -1,4 +1,5 @@
 use std::{fs, io};
+use std::fs::FileType;
 use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use crate::installer::{InstallerConfig, InstallerError};
@@ -69,6 +70,37 @@ impl LocalProfile{
                 Err(InstallerError::from(err))
             }
         }
+    }
+    pub fn add_resource_pack(&self,pack_name:&str)->Result<(),InstallerError>{
+        let rp = ResourcePack::open_remote(pack_name)?;
+        let profile_path = InstallerConfig::open().unwrap().default_game_dir.unwrap().join("profiles").join(&self.name);
+        Ok(rp.download(&profile_path)?)
+    }
+
+    pub fn delete_resource_pack(&self,pack_name:&str)->Result<(),InstallerError>{
+        let resource_packs_dir = InstallerConfig::open().unwrap().default_game_dir.unwrap().join("profiles").join(&self.name).join("resourcepacks");
+        let readout =fs::read_dir(&resource_packs_dir)?;
+        for op in readout{
+            match op{
+                Ok(entry) => {
+                    if entry.file_name().to_str().unwrap().contains(pack_name){
+                        println!("Delete is warranted");
+                        dbg!(&entry.file_type());
+                        match entry.file_type().unwrap().is_dir() {
+                            true => {
+                                fs::remove_dir_all(&resource_packs_dir.join(entry.file_name())).unwrap()
+                            }
+                            false => {
+                                fs::remove_file(&resource_packs_dir.join(entry.file_name())).unwrap()
+                            }
+                        }
+                    }
+                }
+                Err(_) => {}
+            }
+
+        }
+    Ok(())
     }
 }
 impl Profile for LocalProfile{
@@ -193,6 +225,7 @@ mod test{
     use std::fs;
     use serial_test::serial;
     use crate::installer::InstallerConfig;
+    use crate::profiles::GameProfile::Local;
     use crate::profiles::local_profile::LocalProfile;
     use crate::profiles::Profile;
 
@@ -212,6 +245,15 @@ mod test{
         let result =new_profile.read_resource_packs();
         assert!( result.is_ok());
         assert_eq!(new_profile.resource_packs.unwrap().len(),2)
+    }
+    #[test]
+    fn test_delete_resource_pack(){
+        let profile_name = "new_profile";
+        let local_profile = LocalProfile::open(profile_name).unwrap();
+        let result = local_profile.delete_resource_pack("deleteme");
+        dbg!(&result);
+        assert!(result.is_ok());
+
     }
     #[test]
     #[serial]

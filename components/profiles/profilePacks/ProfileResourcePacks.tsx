@@ -1,6 +1,7 @@
 import React, {useEffect} from "react";
 import {useQuery} from "react-query";
 import {invoke} from "@tauri-apps/api";
+import ResourcePack from "./ResourcePack.tsx";
 
 export default function ProfileResourcePacks({resourcePacks}:Readonly<{resourcePacks:any}>){
     console.log(resourcePacks)
@@ -28,10 +29,9 @@ export default function ProfileResourcePacks({resourcePacks}:Readonly<{resourceP
                     <h4 className={'text-center font-bold'}>Add Resource Pack</h4>
                     {remoteResourcePacks.data?.map(resourcePack=>{
                         return(
-                            <p className={''} style={{color:resourcePacks.find(({name})=>name === resourcePack.name) === -1?"red":"green"}} key={resourcePack.name}>
-                                {resourcePack.name}
-                            </p>
+                            <ResourcePack pack={resourcePack} installed={!!resourcePacks.find(({name})=>name === resourcePack.name)}/>
                         )
+
                     })}
                 </div>
             </div>

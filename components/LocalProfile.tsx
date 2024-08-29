@@ -5,7 +5,7 @@ import CompareLocalProfile from "./CompareLocalProfile.tsx";
 import LoadingSpinner from "./LoadingSpinner.tsx";
 import {useSearchParams} from "react-router-dom";
 import ProfileMods from "./profiles/profileMods/ProfileMods.tsx";
-import ProfileResourcePacks from "./profiles/profileMods/ProfileResourcePacks.tsx";
+import ProfileResourcePacks from "./profiles/profilePacks/ProfileResourcePacks.tsx";
 import {RemoteProfile} from "../lib/types.ts";
 
 export default function LocalProfile({profileName}:Readonly<{ profileName: string}>){
@@ -23,7 +23,7 @@ export default function LocalProfile({profileName}:Readonly<{ profileName: strin
     const openProfileLocation=async (e: React.MouseEvent<HTMLButtonElement, MouseEvent>)=>{
         setLoading(true)
         // @ts-ignore
-        await invoke('profile_location',{basePath:path,profileName:e.currentTarget.name}).then((res)=>{
+        await invoke('profile_location',{profileName:searchParams.get("profile")}).then((res)=>{
             console.log(res)
             // setMessage(res)
         }).catch(err=>{
@@ -64,7 +64,6 @@ export default function LocalProfile({profileName}:Readonly<{ profileName: strin
         },
         {enabled:!!profileName}
     )
-
 
     return(
         <>

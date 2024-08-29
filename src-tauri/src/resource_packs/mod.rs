@@ -26,7 +26,7 @@ impl PackManager{
         let mut packs:Vec<ResourcePack> = Vec::new();
         let val = sftp.readdir(remote_path.as_path())?;
         for x in val {
-            if(x.1.is_dir()){
+            if x.1.is_dir(){
                 packs.push(ResourcePack::open_remote(x.0.file_name().unwrap().to_str().unwrap())?)
             }
         }
