@@ -1,10 +1,12 @@
 use std::{fs, io};
+use std::fs::FileType;
 use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use crate::installer::{InstallerConfig, InstallerError};
 use crate::launcher::{LauncherProfile, LauncherProfiles};
-use crate::profiles::{Profile, SFTP_PROFILES_DIR};
+use crate::profiles::{Profile, ProfileAddon, SFTP_PROFILES_DIR};
 use crate::profiles::remote_profile::RemoteProfile;
+use crate::resource_packs::ResourcePack;
 use crate::sftp::{copy_dir_all, sftp_list_dir};
 
 #[derive(Serialize,Deserialize,Debug,Clone)]
@@ -13,7 +15,7 @@ pub struct LocalProfile{
     pub name:String,
     pub mods:Option<Vec<String>>,
     pub launcher_profile:Option<LauncherProfile>,
-    pub resource_packs:Option<Vec<String>>,
+    pub resource_packs:Option<Vec<ResourcePack>>,
     pub config:Option<Vec<String>>
 }
 
@@ -69,6 +71,37 @@ impl LocalProfile{
             }
         }
     }
+    pub fn add_resource_pack(&self,pack_name:&str)->Result<(),InstallerError>{
+        let rp = ResourcePack::open_remote(pack_name)?;
+        let profile_path = InstallerConfig::open().unwrap().default_game_dir.unwrap().join("profiles").join(&self.name);
+        Ok(rp.download(&profile_path)?)
+    }
+
+    pub fn delete_resource_pack(&self,pack_name:&str)->Result<(),InstallerError>{
+        let resource_packs_dir = InstallerConfig::open().unwrap().default_game_dir.unwrap().join("profiles").join(&self.name).join("resourcepacks");
+        let readout =fs::read_dir(&resource_packs_dir)?;
+        for op in readout{
+            match op{
+                Ok(entry) => {
+                    if entry.file_name().to_str().unwrap().contains(pack_name){
+                        println!("Delete is warranted");
+                        dbg!(&entry.file_type());
+                        match entry.file_type().unwrap().is_dir() {
+                            true => {
+                                fs::remove_dir_all(&resource_packs_dir.join(entry.file_name())).unwrap()
+                            }
+                            false => {
+                                fs::remove_file(&resource_packs_dir.join(entry.file_name())).unwrap()
+                            }
+                        }
+                    }
+                }
+                Err(_) => {}
+            }
+
+        }
+    Ok(())
+    }
 }
 impl Profile for LocalProfile{
     fn new(profile_name: &str) -> Self {
@@ -103,6 +136,7 @@ impl Profile for LocalProfile{
         // let installer_config = InstallerConfig::open()?;
         let mut profile = Self::new(profile_name);
         profile.read_mods()?;
+        profile.read_resource_packs()?;
         profile.read_launcher_profile()?;
         Ok(profile)
     }
@@ -136,6 +170,20 @@ impl Profile for LocalProfile{
             mod_names.push(entry);
         };
         self.mods = Some(mod_names);
+        Ok(())
+    }
+
+    fn read_resource_packs(&mut self) -> Result<(), InstallerError> {
+        let installer_config = InstallerConfig::open()?;
+        let profile_path = PathBuf::from(installer_config.default_game_dir.unwrap()).join("profiles").join(&self.name);
+        let mods = fs::read_dir(profile_path.join("resourcepacks").as_path())?;
+        let mut resource_packs = Vec::new();
+        for x in mods {
+            let entry = x.unwrap().file_name().to_str().unwrap().to_string();
+            let rp = ResourcePack::open_local(&entry)?;
+            resource_packs.push(rp);
+        };
+        self.resource_packs = Some(resource_packs);
         Ok(())
     }
 
@@ -177,6 +225,7 @@ mod test{
     use std::fs;
     use serial_test::serial;
     use crate::installer::InstallerConfig;
+    use crate::profiles::GameProfile::Local;
     use crate::profiles::local_profile::LocalProfile;
     use crate::profiles::Profile;
 
@@ -188,6 +237,23 @@ mod test{
         let profile_name = "new_profile";
         let new_profile = LocalProfile::new(profile_name);
         assert_eq!(new_profile.name, profile_name)
+    }
+    #[test]
+    fn test_read_resource_packs(){
+        let profile_name = "new_profile";
+        let mut new_profile = LocalProfile::new(profile_name);
+        let result =new_profile.read_resource_packs();
+        assert!( result.is_ok());
+        assert_eq!(new_profile.resource_packs.unwrap().len(),2)
+    }
+    #[test]
+    fn test_delete_resource_pack(){
+        let profile_name = "new_profile";
+        let local_profile = LocalProfile::open(profile_name).unwrap();
+        let result = local_profile.delete_resource_pack("deleteme");
+        dbg!(&result);
+        assert!(result.is_ok());
+
     }
     #[test]
     #[serial]

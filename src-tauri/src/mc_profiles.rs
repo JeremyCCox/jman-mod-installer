@@ -58,9 +58,10 @@ pub fn create_mods_folder(base_path:&PathBuf,profile_name:&str)-> Result<(),Inst
 // }
 pub fn open_profile_location(profile_name:&str)->Result<(),InstallerError>{
     let profile_path = InstallerConfig::open()?.default_game_dir.unwrap().join("profiles").join(profile_name);
+    println!("{:?}",profile_path);
     match env::consts::OS{
         x if x.eq("windows")=>{
-            Command::new("explorer").arg(profile_path).spawn().unwrap();
+            Command::new("explorer").arg(profile_path.as_path()).spawn().unwrap();
         },
         x if x == "linux" => {
             Command::new("xdg-open").arg(profile_path).spawn().unwrap();

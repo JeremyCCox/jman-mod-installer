@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 use crate::installer::{InstallerConfig, InstallerError};
 use crate::launcher::LauncherProfile;
 use crate::profiles::local_profile::LocalProfile;
-use crate::profiles::{Profile, SFTP_PROFILES_DIR};
+use crate::profiles::{Profile, ProfileAddon, SFTP_PROFILES_DIR};
+use crate::resource_packs::ResourcePack;
 use crate::sftp::sftp_remove_dir;
 
 
@@ -14,7 +15,7 @@ pub struct RemoteProfile{
     pub name:String,
     pub mods:Option<Vec<String>>,
     pub launcher_profile:Option<LauncherProfile>,
-    pub resource_packs:Option<Vec<String>>,
+    pub resource_packs:Option<Vec<ResourcePack>>,
     pub config:Option<Vec<String>>,
 }
 impl From<LocalProfile> for RemoteProfile{
@@ -68,6 +69,23 @@ impl RemoteProfile{
         };
         Ok(())
     }
+    pub fn save_profile(&self)->Result<(),InstallerError>{
+        let sftp = InstallerConfig::open()?.sftp_safe_connect()?;
+        let mut file = sftp.create(PathBuf::from(SFTP_PROFILES_DIR).join(&self.name).join("profile.json").as_path())?;
+        let self_json = serde_json::to_string_pretty(&self)?;
+        file.write(self_json.as_ref())?;
+        Ok(())
+    }
+    pub fn read_profile_manifest<S:Into<String>>(name:S) ->Result<Self,InstallerError>{
+        println!("Looking for profile manifest");
+        let name = name.into();
+        let sftp = InstallerConfig::open()?.sftp_safe_connect()?;
+        let file = sftp.open(PathBuf::from(SFTP_PROFILES_DIR).join(name).join("profile.json").as_path())?;
+        let profile:RemoteProfile = serde_json::from_reader(file)?;
+        println!("Profile manifest found, returning profile");
+        Ok(profile)
+
+    }
 }
 impl Profile for RemoteProfile{
     fn new(profile_name: &str) -> Self {
@@ -103,10 +121,20 @@ impl Profile for RemoteProfile{
     where
         Self: Sized
     {
-        let mut profile = Self::new(profile_name);
-        profile.read_mods()?;
-        profile.read_launcher_profile()?;
-        Ok(profile)
+
+        match RemoteProfile::read_profile_manifest(profile_name) {
+            Ok(profile) => {
+                Ok(profile)
+            }
+            Err(_) => {
+                let mut profile = Self::new(profile_name);
+                profile.read_mods()?;
+                profile.read_launcher_profile()?;
+                let _ = profile.save_profile();
+                Ok(profile)
+            }
+        }
+
     }
 
     fn copy(self, copy_name: &str) -> Result<Self,InstallerError> {
@@ -151,6 +179,24 @@ impl Profile for RemoteProfile{
                     mod_names.push(file_name.to_str().unwrap().to_string())
                 }
                 self.mods = Some(mod_names);
+                Ok(())
+            }
+            Err(err) => {
+                Err(InstallerError::from(err))
+            }
+        }
+    }
+
+    fn read_resource_packs(&mut self) -> Result<(), InstallerError> {
+        let sftp = InstallerConfig::open().unwrap().sftp_safe_connect().expect("Could not establish SFTP connection");
+        match sftp.readdir(PathBuf::from(SFTP_PROFILES_DIR).join(&self.name).join("resource_packs").as_path()) {
+            Ok(dir_readout) => {
+                let mut resource_packs:Vec<ResourcePack> = Vec::new();
+                for i in dir_readout.iter() {
+                    let file_name = i.0.file_name().unwrap();
+                    resource_packs.push(ResourcePack::open_remote(file_name.to_str().unwrap())?);
+                }
+                self.resource_packs = Some(resource_packs);
                 Ok(())
             }
             Err(err) => {
@@ -208,6 +254,14 @@ mod test{
     use crate::profiles::remote_profile::RemoteProfile;
     use crate::sftp::{sftp_list_dir, sftp_read_launcher_profile};
 
+    #[test]
+    fn test_open_remote_profile(){
+        let profile_name = "new_profile";
+        let result = RemoteProfile::open(profile_name);
+        dbg!(&result);
+        assert!(result.is_ok())
+
+    }
     #[test]
     #[serial]
     fn test_write_launcher_profile(){
@@ -269,6 +323,12 @@ mod test{
         let local_profile = LocalProfile::open(profile_name).unwrap();
         println!("{:?}",local_profile);
         assert!(&local_profile.mods.unwrap().len() > &0);
+    }
+    #[test]
+    fn test_read_resource_packs(){
+        let profile_name = "jman_modpack";
+        let remote_profile = RemoteProfile::open(profile_name).unwrap();
+        dbg!(&remote_profile);
     }
     #[test]
     fn test_read_specific_remote_profile(){

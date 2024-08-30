@@ -2,9 +2,11 @@ import React, {useState} from "react";
 import {invoke} from "@tauri-apps/api";
 import {useQuery, useQueryClient, UseQueryResult} from "react-query";
 import CompareLocalProfile from "./CompareLocalProfile.tsx";
-import {RemoteProfile} from "@my-types/*";
 import LoadingSpinner from "./LoadingSpinner.tsx";
 import {useSearchParams} from "react-router-dom";
+import ProfileMods from "./profiles/profileMods/ProfileMods.tsx";
+import ProfileResourcePacks from "./profiles/profilePacks/ProfileResourcePacks.tsx";
+import {RemoteProfile} from "../lib/types.ts";
 
 export default function LocalProfile({profileName}:Readonly<{ profileName: string}>){
     const queryClient = useQueryClient();
@@ -21,7 +23,7 @@ export default function LocalProfile({profileName}:Readonly<{ profileName: strin
     const openProfileLocation=async (e: React.MouseEvent<HTMLButtonElement, MouseEvent>)=>{
         setLoading(true)
         // @ts-ignore
-        await invoke('profile_location',{basePath:path,profileName:e.currentTarget.name}).then((res)=>{
+        await invoke('profile_location',{profileName:searchParams.get("profile")}).then((res)=>{
             console.log(res)
             // setMessage(res)
         }).catch(err=>{
@@ -57,12 +59,11 @@ export default function LocalProfile({profileName}:Readonly<{ profileName: strin
             setLoading(false)
         })
     }
-    const remoteProfile:UseQueryResult<RemoteProfile>=useQuery(["remote_profiles",profileName],async () => {
-            return await invoke("read_specific_remote_profile", {profileName})
+    const localProfile:UseQueryResult<RemoteProfile>=useQuery(["local-profiles",profileName],async () => {
+            return await invoke("read_specific_local_profile", {profileName})
         },
         {enabled:!!profileName}
     )
-
 
     return(
         <>
@@ -85,26 +86,15 @@ export default function LocalProfile({profileName}:Readonly<{ profileName: strin
             </div>
                 <CompareLocalProfile profileName={profileName}/>
                 <div className={'border w-full border-black m-2'}>
-                    {remoteProfile.data&&
-                        <div className={'h-60 w-full border-2 border-black overflow-y-auto'}>
-                            {remoteProfile.isLoading&&
+                    {localProfile.data&&
+                        <div className={''}>
+                            {localProfile.isLoading&&
                                 <div className={'text-center'}>
                                     <LoadingSpinner/>
                                 </div>
                             }
-                            {remoteProfile.data&&
-
-                                    <div className={'m-2'}>
-                                        <h3 className={'text-center font-bold text-2xl'}>Mods</h3>
-                                        {remoteProfile.data.mods?.map(mod=>{
-                                            return(
-                                                <p className={''} key={mod}>
-                                                    {mod}
-                                                </p>
-                                            )
-                                        })}
-                                    </div>
-                            }
+                            <ProfileMods mods={localProfile.data?.mods}/>
+                            <ProfileResourcePacks resourcePacks={localProfile.data?.resourcePacks}/>
                         </div>
                     }
                 </div>
