@@ -1,12 +1,11 @@
 use std::{fs, io};
 use std::io::Write;
 use std::path::PathBuf;
-use log::info;
 use serde::{Deserialize, Serialize};
 use crate::installer::{InstallerConfig, InstallerError};
 use crate::launcher::LauncherProfile;
 use crate::profiles::local_profile::LocalProfile;
-use crate::profiles::{Profile, SFTP_PROFILES_DIR};
+use crate::profiles::{Profile, ProfileAddon, SFTP_PROFILES_DIR};
 use crate::resource_packs::ResourcePack;
 use crate::sftp::sftp_remove_dir;
 

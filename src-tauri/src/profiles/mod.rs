@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use crate::installer::InstallerError;
 use crate::launcher::LauncherProfiles;
@@ -8,15 +9,6 @@ pub mod local_profile;
 pub mod remote_profile;
 
 const SFTP_PROFILES_DIR: &str = "/upload/profiles/";
-
-
-#[derive(Serialize,Deserialize,Debug,Clone)]
-pub struct ProfileMod{
-    name:String,
-    version:Option<String>,
-    required:Option<bool>,
-    enabled:Option<bool>
-}
 
 
 pub enum GameProfile{
@@ -55,4 +47,12 @@ pub trait Profile{
     fn read_launcher_profile(&mut self)->Result<(),InstallerError>;
     fn rename_profile(&mut self,new_name:&str)->Result<(),InstallerError>;
 
+}
+
+pub trait ProfileAddon{
+    fn new(name:&str)->Self;
+    fn open_remote(name:&str)->Result<Self,InstallerError> where Self: Sized;
+    fn open_local(name:&str)->Result<Self,InstallerError> where Self: Sized;
+    fn upload(&self, source:&PathBuf) ->Result<(),InstallerError>;
+    fn download(&self, location:&PathBuf) ->Result<(),InstallerError>;
 }

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use crate::installer::{InstallerConfig, InstallerError};
 use crate::launcher::{LauncherProfile, LauncherProfiles};
-use crate::profiles::{Profile, SFTP_PROFILES_DIR};
+use crate::profiles::{Profile, ProfileAddon, SFTP_PROFILES_DIR};
 use crate::profiles::remote_profile::RemoteProfile;
 use crate::resource_packs::ResourcePack;
 use crate::sftp::{copy_dir_all, sftp_list_dir};
@@ -180,7 +180,7 @@ impl Profile for LocalProfile{
         let mut resource_packs = Vec::new();
         for x in mods {
             let entry = x.unwrap().file_name().to_str().unwrap().to_string();
-            let rp = ResourcePack::open_local(entry)?;
+            let rp = ResourcePack::open_local(&entry)?;
             resource_packs.push(rp);
         };
         self.resource_packs = Some(resource_packs);
