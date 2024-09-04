@@ -1,14 +1,11 @@
-use std::{fs, io};
 use std::io::Write;
 use std::path::PathBuf;
-use log::__private_api::loc;
 use serde::{Deserialize, Serialize};
+use crate::addons::{AddonType, ProfileAddon};
 use crate::installer::{InstallerConfig, InstallerError};
 use crate::launcher::LauncherProfile;
-use crate::mods::Mod;
 use crate::profiles::local_profile::LocalProfile;
-use crate::profiles::{Profile, ProfileAddon, SFTP_PROFILES_DIR};
-use crate::resource_packs::ResourcePack;
+use crate::profiles::{Profile, SFTP_PROFILES_DIR};
 use crate::sftp::sftp_remove_dir;
 
 
@@ -16,9 +13,9 @@ use crate::sftp::sftp_remove_dir;
 pub struct RemoteProfile{
     pub name:String,
     pub version:Option<String>,
-    pub mods:Option<Vec<Mod>>,
+    pub mods:Option<Vec<ProfileAddon>>,
     pub launcher_profile:Option<LauncherProfile>,
-    pub resource_packs:Option<Vec<ResourcePack>>,
+    pub resource_packs:Option<Vec<ProfileAddon>>,
     pub config:Option<Vec<String>>,
 }
 impl From<LocalProfile> for RemoteProfile{
@@ -34,48 +31,23 @@ impl From<LocalProfile> for RemoteProfile{
     }
 }
 impl RemoteProfile{
-    // pub fn from_sftp(name:String)->Self{
-    //     Self{
-    //         name,
-    //         mods: None,
-    //         launcher_profile: None,
-    //     }
-    // }
     pub fn install_profile(self)->Result<LocalProfile,InstallerError>{
         dbg!(&self);
         let mut local_profile = LocalProfile::from(self.clone());
-        // dbg!(&local_profile.mods);
-        let mut new_launcher_profile = self.launcher_profile.clone().unwrap();
+        let mut new_launcher_profile = self.launcher_profile.clone().unwrap_or_else(||LauncherProfile::new(&self.name));
         new_launcher_profile.game_dir = Some(InstallerConfig::open().unwrap().default_game_dir.unwrap().join("profiles").join(&self.name));
         local_profile.launcher_profile = Some(new_launcher_profile);
         local_profile.scaffold()?;
         local_profile.write_launcher_profile()?;
         local_profile.save_profile()?;
-        // dbg!(&local_profile);
-        self.install_mods()?;
-        // dbg!(&local_profile.mods);
+        self.install_addons(AddonType::Mod)?;
         Ok(local_profile)
     }
-    pub fn install_mods(self)->Result<(),InstallerError>{
-        let installer_config = InstallerConfig::open().unwrap();
-        // let sftp = installer_config.sftp_safe_connect()?;
-        // let remote_path = PathBuf::from(SFTP_PROFILES_DIR).join(&self.name).join("mods");
-        let profile_path = installer_config.default_game_dir.unwrap().join("profiles").join(&self.name);
-        let mods_list:Vec<Mod> = self.mods.clone().unwrap_or_else(|| Vec::new());
-        println!("{:?}",mods_list);
+    pub fn install_addons(&self,addon_type: AddonType)->Result<(),InstallerError>{
+        let mods_list:Vec<ProfileAddon> = self.get_type_addons(addon_type).unwrap();
         for m in mods_list.iter(){
-            dbg!(&m);
-            m.download(&profile_path).unwrap()
+            m.download(&addon_type.get_local_dir(&self.name)?).unwrap()
         }
-        // let installed_mods:Vec<Mod> = fs::read_dir(local_path.as_path()).expect("could not list mods directory").into_iter().map(|x| Mod::open_remote(x.unwrap().file_name().to_str().unwrap()).unwrap()).collect();
-        // for current_mod in mods_list{
-        //     match installed_mods.iter().find(|&m| m.name == current_mod.name){
-        //         None => {
-        //             current_mod.download(&profile_path).unwrap()
-        //         }
-        //         Some(_) => {}
-        //     }
-        // };
         Ok(())
     }
     pub fn save_profile(&self)->Result<(),InstallerError>{
@@ -155,6 +127,7 @@ impl Profile for RemoteProfile{
         new_profile.launcher_profile= Some(new_launcher_profile);
         new_profile.write_launcher_profile()?;
         new_profile.mods = self.mods;
+        new_profile.resource_packs = self.resource_packs;
 
         Ok(new_profile)
 
@@ -167,23 +140,44 @@ impl Profile for RemoteProfile{
     }
 
 
-
-    fn read_resource_packs(&mut self) -> Result<(), InstallerError> {
+    fn read_addons(&mut self, addon_type: AddonType) -> Result<(), InstallerError> {
         let sftp = InstallerConfig::open().unwrap().sftp_safe_connect().expect("Could not establish SFTP connection");
-        match sftp.readdir(PathBuf::from(SFTP_PROFILES_DIR).join(&self.name).join("resource_packs").as_path()) {
+        match sftp.readdir(addon_type.get_remote_dir().as_path()) {
             Ok(dir_readout) => {
-                let mut resource_packs:Vec<ResourcePack> = Vec::new();
+                let mut addons:Vec<ProfileAddon> = Vec::new();
                 for i in dir_readout.iter() {
                     let file_name = i.0.file_name().unwrap();
-                    resource_packs.push(ResourcePack::open_remote(file_name.to_str().unwrap())?);
+                    addons.push(ProfileAddon::open_remote(file_name.to_str().unwrap(),addon_type)?);
                 }
-                self.resource_packs = Some(resource_packs);
+                self.set_type_addons(addons,addon_type)?;
                 Ok(())
             }
             Err(err) => {
                 Err(InstallerError::from(err))
             }
         }
+    }
+
+    fn get_type_addons(&self, addon_type: AddonType)->Result<Vec<ProfileAddon>,InstallerError>{
+        return match addon_type{
+            AddonType::ResourcePack => {
+                Ok(self.resource_packs.clone().unwrap_or_else(|| Vec::new()))
+            }
+            AddonType::Mod => {
+                Ok(self.mods.clone().unwrap_or_else(|| Vec::new()))
+            }
+        };
+    }
+    fn set_type_addons(&mut self, addons:Vec<ProfileAddon>, addon_type: AddonType) ->Result<(),InstallerError>{
+        match addon_type{
+            AddonType::ResourcePack => {
+                self.resource_packs = Some(addons);
+            }
+            AddonType::Mod => {
+                self.mods = Some(addons);
+            }
+        }
+        Ok(())
     }
 
 
@@ -229,6 +223,7 @@ mod test{
     use std::fs;
     use std::path::PathBuf;
     use serial_test::serial;
+    use crate::addons::AddonType;
     use crate::installer::InstallerConfig;
     use crate::profiles::local_profile::LocalProfile;
     use crate::profiles::{Profile, SFTP_PROFILES_DIR};
@@ -310,7 +305,7 @@ mod test{
         let remote_profile = RemoteProfile::open(profile_name).unwrap();
         let _ = fs::remove_dir_all(base_path.join("profiles").join(profile_name).join("mods"));
         let _ = fs::create_dir(base_path.join("profiles").join(profile_name).join("mods"));
-        let result = remote_profile.install_mods();
+        let result = remote_profile.install_addons(AddonType::Mod);
         assert!(result.is_ok());
         let local_profile = LocalProfile::open(profile_name).unwrap();
         println!("{:?}",local_profile);

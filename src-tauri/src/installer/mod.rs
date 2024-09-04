@@ -30,6 +30,7 @@ impl ConfigError{
             message: "no sftp_server found in config!".to_string(),
         }
     }
+
     // fn no_port()->Self{
     //     Self{
     //         code:2,
@@ -47,7 +48,12 @@ impl ConfigError{
     //         message: "no sftp_password found in config!".to_string(),
     //     }
     // }
-
+    fn no_addon_type()->Self{
+        Self{
+            code:5,
+            message: "no addon type!".to_string(),
+        }
+    }
 }
 #[derive(Debug,thiserror::Error)]
 pub enum InstallerError{

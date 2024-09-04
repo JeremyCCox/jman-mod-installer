@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use crate::addons::{AddonType, ProfileAddon};
 use crate::installer::InstallerError;
 use crate::launcher::LauncherProfiles;
 use crate::profiles::local_profile::LocalProfile;
@@ -43,17 +44,12 @@ pub trait Profile{
     fn open(profile_name:&str)->Result<Self,InstallerError> where Self: Sized;
     fn copy (self,copy_name:&str)->Result<Self,InstallerError> where Self: Sized;
     fn delete(self)->Result<(),InstallerError>;
-    fn read_resource_packs(&mut self)->Result<(),InstallerError>;
+    fn read_addons(&mut self,addon_type: AddonType)->Result<(),InstallerError>;
+    fn get_type_addons(&self, addon_type: AddonType)->Result<Vec<ProfileAddon>,InstallerError>;
+    fn set_type_addons(&mut self, addons:Vec<ProfileAddon>, addon_type: AddonType) ->Result<(),InstallerError>;
     fn write_launcher_profile(&mut self)->Result<(),InstallerError>;
     fn read_launcher_profile(&mut self)->Result<(),InstallerError>;
     fn rename_profile(&mut self,new_name:&str)->Result<(),InstallerError>;
 
 }
 
-pub trait ProfileAddon{
-    fn new(name:&str)->Self;
-    fn open_remote(name:&str)->Result<Self,InstallerError> where Self: Sized;
-    fn open_local(name:&str)->Result<Self,InstallerError> where Self: Sized;
-    fn upload(&self, source:&PathBuf) ->Result<(),InstallerError>;
-    fn download(&self, location:&PathBuf) ->Result<(),InstallerError>;
-}

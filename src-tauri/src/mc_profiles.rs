@@ -79,6 +79,7 @@ pub fn open_profile_location(profile_name:&str)->Result<(),InstallerError>{
 #[cfg(test)]
 mod tests{
     use serial_test::serial;
+    use crate::addons::AddonType;
     use crate::profiles::local_profile::LocalProfile;
     use crate::profiles::Profile;
     use crate::sftp::sftp_upload_profile;
@@ -126,13 +127,13 @@ mod tests{
         let _ = fs::create_dir(base_path.join("profiles").join(profile_name).join("mods"));
         let mut local_profile = LocalProfile::open(profile_name).unwrap();
         let first_mod = Vec::from(["testjar.jar"]);
-        let result = &local_profile.install_mods(first_mod);
+        let result = &local_profile.install_addons(first_mod,AddonType::Mod);
         println!("{:?}",local_profile);
         assert!(result.is_ok());
         assert_eq!(local_profile.mods.as_ref().unwrap().len(), 1);
 
         let second_mods = Vec::from(["testjar.jar"]);
-        let _ = &local_profile.install_mods(second_mods);
+        let _ = &local_profile.install_addons(second_mods,AddonType::Mod);
         assert_eq!(local_profile.mods.as_ref().unwrap().len(),2);
 
     }

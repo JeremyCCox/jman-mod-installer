@@ -2,24 +2,22 @@ use std::{fs, io};
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::Write;
-use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
+use crate::addons::{AddonType, ProfileAddon};
 use crate::installer::{InstallerConfig, InstallerError};
 use crate::launcher::{LauncherProfile, LauncherProfiles};
-use crate::mods::Mod;
-use crate::profiles::{Profile, ProfileAddon, SFTP_PROFILES_DIR};
+use crate::profiles::{Profile};
 use crate::profiles::remote_profile::RemoteProfile;
-use crate::resource_packs::ResourcePack;
-use crate::sftp::{copy_dir_all, sftp_list_dir};
+use crate::sftp::{copy_dir_all};
 
 #[derive(Serialize,Deserialize,Debug,Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalProfile{
     pub name:String,
     pub version:Option<String>,
-    pub mods:Option<Vec<Mod>>,
+    pub mods:Option<Vec<ProfileAddon>>,
     pub launcher_profile:Option<LauncherProfile>,
-    pub resource_packs:Option<Vec<ResourcePack>>,
+    pub resource_packs:Option<Vec<ProfileAddon>>,
     pub config:Option<Vec<String>>
 }
 
@@ -30,54 +28,68 @@ impl LocalProfile{
         remote_profile.scaffold()?;
         remote_profile.write_launcher_profile()?;
         remote_profile.save_profile()?;
-        let mods = self.mods.clone().unwrap();
-        self.upload_mods(mods)?;
+        &self.upload_addons(AddonType::Mod)?;
+        &self.upload_addons(AddonType::ResourcePack)?;
         Ok(remote_profile)
     }
-    pub fn upload_mods(self,mods_list:Vec<Mod>)->Result<(),InstallerError>{
-        let installer_config = InstallerConfig::open()?;
-        let local_mods_path = installer_config.default_game_dir.unwrap().join("profiles").join(self.name);
-        for a in mods_list.iter(){
-            a.upload(&local_mods_path)?;
+    pub fn upload_addons(&self,addons_type:AddonType)->Result<(),InstallerError>{
+        for a in self.get_type_addons(addons_type)?.iter(){
+            a.upload(&addons_type.get_local_dir(&self.name)?)?;
         };
+        let rp =RemoteProfile::from(self.clone());
+        rp.save_profile()?;
         Ok(())
     }
-    pub fn install_mods(&mut self,mods_list:Vec<&str>)->Result<(),InstallerError>{
+
+    pub fn upload_specific_addons(self,addons_list:Vec<ProfileAddon>,addon_type:AddonType)->Result<(),InstallerError>{
+        for a in addons_list.iter(){
+            a.upload(&addon_type.get_local_dir(&self.name).unwrap())?;
+        };
+        let rp =RemoteProfile::from(self.clone());
+        rp.save_profile()?;
+        Ok(())
+    }
+    pub fn install_addons(&mut self,addon_list:Vec<&str>,addon_type: AddonType)->Result<(),InstallerError>{
         let installer_config = InstallerConfig::open().unwrap();
         let profile_path = installer_config.default_game_dir.unwrap();
         let local_path = profile_path.join("profiles").join(&self.name);
         let mut dependencies:HashSet<String>= HashSet::new();
-        let mut mods = self.mods.clone().unwrap_or_else(|| Vec::new());
-        for a in mods_list.iter(){
-            let current_mod = Mod::open_remote(a)?;
+        let mut addons:Vec<ProfileAddon> = self.get_type_addons(addon_type).unwrap();
+        for a in addon_list.iter(){
+            let current_mod = ProfileAddon::open_remote(a,addon_type)?;
             dependencies.extend(current_mod.dependencies.clone());
             current_mod.download(&local_path)?;
-            mods.push(current_mod);
+            addons.push(current_mod);
         }
-        self.mods = Some(mods);
+        self.set_type_addons(addons,addon_type)?;
         match self.find_missing_dependencies(dependencies){
             None => {}
             Some(set) => {
                 let mod_names = set.iter().map(|item| item.as_str()).collect();
-                self.install_mods(mod_names)?;
+                self.install_addons(mod_names,AddonType::Mod)?;
             }
         }
         self.save_profile()?;
         Ok(())
     }
-    pub fn install_new_mods(&mut self,mods_list:Vec<Mod>)->Result<(),InstallerError>{
-        let game_dir = InstallerConfig::open()?.default_game_dir.unwrap();
-        let mut installed_mods_list = self.mods.clone().unwrap();
+    pub fn install_new_addons(&mut self,mods_list:Vec<ProfileAddon>,addon_type: AddonType)->Result<(),InstallerError>{
+
+        let addons_path = addon_type.get_local_dir(&self.name)?;
+
+        let mut installed_addons = self.get_type_addons(addon_type).unwrap();
         let mut dependencies:HashSet<String>= HashSet::new();
+
         for x in mods_list {
             let mut file = File::open(&x.location)?;
             let new_mod = x.clone();
             dependencies.extend(x.dependencies);
-            let mut new_file = File::create(game_dir.join("profiles").join(&self.name).join("mods").join(x.file_name))?;
+            let mut new_file = File::create(addons_path.join(x.file_name))?;
             io::copy(&mut file, &mut new_file)?;
-            installed_mods_list.push(new_mod);
+            installed_addons.push(new_mod);
         }
-        self.mods = Some(installed_mods_list);
+
+        self.set_type_addons(installed_addons,addon_type)?;
+
         match self.find_missing_dependencies(dependencies) {
             None => {
                 println!("No missing dependencies")
@@ -85,7 +97,7 @@ impl LocalProfile{
             Some(set) => {
                 println!("There are {} dependencies missing!",set.len());
                 let mod_names = set.iter().map(|item| item.as_str()).collect();
-                self.install_mods(mod_names)?;
+                self.install_addons(mod_names,AddonType::Mod)?;
             }
         };
 
@@ -94,7 +106,7 @@ impl LocalProfile{
     }
     pub fn find_missing_dependencies(&self,dependencies:HashSet<String>)->Option<HashSet<String>>{
         let mut missing_dependencies = dependencies;
-        let mod_list = self.mods.clone().unwrap();
+        let mod_list = self.get_type_addons(AddonType::Mod).unwrap();;
         for x in mod_list {
             match missing_dependencies.contains(&x.name) {
                 true => {
@@ -108,85 +120,44 @@ impl LocalProfile{
             _ => Some(missing_dependencies)
         }
     }
-    pub fn add_resource_pack(&mut self,pack_name:&str)->Result<(),InstallerError>{
-        let rp = ResourcePack::open_remote(pack_name)?;
-        let mut packs = self.resource_packs.clone().unwrap();
-        packs.push(rp.clone());
-        let profile_path = InstallerConfig::open().unwrap().default_game_dir.unwrap().join("profiles").join(&self.name);
-        rp.download(&profile_path)?;
-        self.resource_packs = Some(packs);
+    pub fn install_addon(&mut self,pack_name:&str,addon_type: AddonType)->Result<(),InstallerError>{
+        let rp = ProfileAddon::open_remote(pack_name,addon_type)?;
+        let mut addons = self.get_type_addons(addon_type)?;
+        addons.push(rp.clone());
+        rp.download(&addon_type.get_local_dir(&self.name).unwrap())?;
+        self.set_type_addons(addons,addon_type)?;
         self.save_profile()?;
         Ok(())
     }
 
-    fn read_mods(&mut self)->Result<(),InstallerError>{
-        let installer_config = InstallerConfig::open()?;
-        let profile_path = PathBuf::from(installer_config.default_game_dir.unwrap()).join("profiles").join(&self.name);
-        let mods = fs::read_dir(profile_path.join("mods").as_path())?;
-        let mut mod_names = Vec::new();
-        for x in mods {
-            mod_names.push(Mod::open_local(x.unwrap().file_name().to_str().unwrap()).unwrap());
-        };
-        self.mods = Some(mod_names);
-        Ok(())
-    }
-    pub fn delete_resource_pack(&mut self,pack_name:&str)->Result<(),InstallerError>{
-        let resource_packs_dir = InstallerConfig::open().unwrap().default_game_dir.unwrap().join("profiles").join(&self.name).join("resourcepacks");
-        let readout =fs::read_dir(&resource_packs_dir)?;
-        let mut packs = self.resource_packs.clone().unwrap();
-        for op in readout{
-            match op{
+
+    pub fn delete_addon(&mut self,addon_name:&str,addon_type: AddonType)->Result<(),InstallerError>{
+        let addon_dir = addon_type.get_local_dir(&self.name)?;
+        let readout =fs::read_dir(&addon_dir)?;
+        let mut addons = self.get_type_addons(addon_type)?;
+        for addon in readout{
+            match addon{
                 Ok(entry) => {
-                    if entry.file_name().to_str().unwrap().contains(pack_name){
+                    if entry.file_name().to_str().unwrap().contains(addon_name){
                         dbg!(&entry.file_type());
                         match entry.file_type().unwrap().is_dir() {
                             true => {
-                                fs::remove_dir_all(&resource_packs_dir.join(entry.file_name())).unwrap()
+                                fs::remove_dir_all(&addon_dir.join(entry.file_name())).unwrap()
                             }
                             false => {
-                                fs::remove_file(&resource_packs_dir.join(entry.file_name())).unwrap()
+                                fs::remove_file(&addon_dir.join(entry.file_name())).unwrap()
                             }
                         }
-                        let index = packs.iter().position(|m| m.name == pack_name).unwrap();
-                        packs.remove(index);
+                        let index = addons.iter().position(|m| m.name == addon_name).unwrap();
+                        addons.remove(index);
                     }
                 }
                 Err(_) => {}
             }
-
         }
-        self.resource_packs = Some(packs);
+        self.set_type_addons(addons,addon_type)?;
         self.save_profile()?;
     Ok(())
-    }
-    pub fn delete_mod(&mut self,mod_name:&str)->Result<(),InstallerError>{
-        let mods_dir = InstallerConfig::open().unwrap().default_game_dir.unwrap().join("profiles").join(&self.name).join("mods");
-        let readout =fs::read_dir(&mods_dir)?;
-        let mut mods = self.mods.clone().unwrap();
-        for op in readout{
-            match op{
-                Ok(entry) => {
-                    if entry.file_name().to_str().unwrap().contains(mod_name){
-                        dbg!(&entry.file_type());
-                        match entry.file_type().unwrap().is_dir() {
-                            true => {
-                                fs::remove_dir_all(&mods_dir.join(entry.file_name())).unwrap()
-                            }
-                            false => {
-                                fs::remove_file(&mods_dir.join(entry.file_name())).unwrap()
-                            }
-                        }
-                        let index = mods.iter().position(|m| m.name == mod_name).unwrap();
-                        mods.remove(index);
-                    }
-                }
-                Err(_) => {}
-            }
-
-        }
-        self.mods = Some(mods);
-        self.save_profile()?;
-        Ok(())
     }
     pub fn read_profile_manifest<S:Into<String>>(profile_name:S)->Result<Self,InstallerError>{
         let mut file_name = profile_name.into();
@@ -196,8 +167,8 @@ impl LocalProfile{
         Ok(serde_json::from_reader(file)?)
     }
     pub fn verify_profile_files(&mut self)->Result<(),InstallerError>{
-        &self.read_mods()?;
-        &self.read_resource_packs()?;
+        &self.read_addons(AddonType::Mod)?;
+        &self.read_addons(AddonType::ResourcePack)?;
         &self.read_launcher_profile()?;
         &self.save_profile()?;
         Ok(())
@@ -245,15 +216,14 @@ impl Profile for LocalProfile{
         Ok(())
     }
     fn open(profile_name:&str) -> Result<Self, InstallerError> {
-        // let installer_config = InstallerConfig::open()?;
         match LocalProfile::read_profile_manifest(profile_name) {
             Ok(profile) => {
                 Ok(profile)
             }
             Err(_) => {
                 let mut profile = Self::new(profile_name);
-                profile.read_mods()?;
-                profile.read_resource_packs()?;
+                profile.read_addons(AddonType::Mod)?;
+                profile.read_addons(AddonType::ResourcePack)?;
                 profile.read_launcher_profile()?;
                 profile.save_profile()?;
                 Ok(profile)
@@ -262,8 +232,7 @@ impl Profile for LocalProfile{
 
     }
     fn copy(self, copy_name: &str) -> Result<Self, InstallerError> {
-        let installer_config = InstallerConfig::open().unwrap();
-        let base_path = installer_config.default_game_dir.unwrap();
+        let base_path = InstallerConfig::open().unwrap().default_game_dir.unwrap();
         let mut new_profile = LocalProfile::new(copy_name);
         copy_dir_all(base_path.join("profiles").join(self.name),base_path.join("profiles").join(copy_name))?;
         let mut new_launcher_profile = self.launcher_profile.clone().unwrap();
@@ -282,19 +251,39 @@ impl Profile for LocalProfile{
         Ok(())
     }
 
-    fn read_resource_packs(&mut self) -> Result<(), InstallerError> {
-        let installer_config = InstallerConfig::open()?;
-        let profile_path = PathBuf::from(installer_config.default_game_dir.unwrap()).join("profiles").join(&self.name);
-        let mods = fs::read_dir(profile_path.join("resourcepacks").as_path())?;
-        let mut resource_packs = Vec::new();
-        for x in mods {
-            let entry = x.unwrap().file_name().to_str().unwrap().to_string();
-            let rp = ResourcePack::open_local(&entry)?;
-            resource_packs.push(rp);
+    fn read_addons(&mut self,addon_type: AddonType)->Result<(),InstallerError>{
+        let addon_dir = addon_type.get_local_dir(&self.name)?;
+        let readout = fs::read_dir(addon_dir.as_path())?;
+        let mut addons = Vec::new();
+        for x in readout {
+            addons.push(ProfileAddon::open_local(x.unwrap().file_name().to_str().unwrap(),addon_type).unwrap());
         };
-        self.resource_packs = Some(resource_packs);
+        self.set_type_addons(addons,addon_type)?;
         Ok(())
     }
+
+    fn get_type_addons(&self, addon_type: AddonType)->Result<Vec<ProfileAddon>,InstallerError>{
+        return match addon_type{
+            AddonType::ResourcePack => {
+                Ok(self.resource_packs.clone().unwrap_or_else(|| Vec::new()))
+            }
+            AddonType::Mod => {
+                Ok(self.mods.clone().unwrap_or_else(|| Vec::new()))
+            }
+        };
+    }
+    fn set_type_addons(&mut self, addons:Vec<ProfileAddon>, addon_type: AddonType) ->Result<(),InstallerError>{
+        match addon_type{
+            AddonType::ResourcePack => {
+                self.resource_packs = Some(addons);
+            }
+            AddonType::Mod => {
+                self.mods = Some(addons);
+            }
+        }
+        Ok(())
+    }
+
 
     fn write_launcher_profile(&mut self) -> Result<(), InstallerError> {
         let mut launcher_profiles = LauncherProfiles::from_file(&InstallerConfig::open()?.default_game_dir.unwrap());
@@ -334,10 +323,10 @@ mod test{
     use std::fs;
     use std::fs::File;
     use serial_test::serial;
+    use crate::addons::{AddonManager, AddonType, ProfileAddon};
     use crate::installer::{InstallerConfig, InstallerError};
-    use crate::mods::Mod;
     use crate::profiles::local_profile::LocalProfile;
-    use crate::profiles::{Profile, ProfileAddon};
+    use crate::profiles::{Profile};
 
 
     #[test]
@@ -352,7 +341,6 @@ mod test{
     fn test_open_profile(){
         let profile_name = "jman_modpack";
         let result = LocalProfile::open(profile_name);
-        dbg!(&result);
         assert!(result.is_ok());
     }
     #[test]
@@ -369,37 +357,32 @@ mod test{
     }
     #[test]
     fn test_upload_profile(){
-        let profile_name = "new_profile";
-        let profile = LocalProfile::open(profile_name).unwrap();
-        let result = profile.upload_profile();
+        let mut local_profile:LocalProfile = LocalProfile::open("test_profile").or_else(|e| setup_test_mods()).unwrap();
+        let result = local_profile.upload_profile();
         assert!(&result.is_ok());
         let remote_profile = result.unwrap();
-        dbg!(&remote_profile);
 
     }
     #[test]
     #[serial]
     fn test_upload_mods(){
-        let profile_name = "new_profile";
-        let new_profile = LocalProfile::open(profile_name).unwrap();
-        let mods = new_profile.mods.clone().unwrap();
-        let result = new_profile.upload_mods(mods);
-        dbg!(&result);
+        let mut local_profile:LocalProfile = LocalProfile::open("test_profile").or_else(|e| setup_test_mods()).unwrap();
+        let result = local_profile.upload_addons(AddonType::Mod);
         assert!(result.is_ok());
     }
     #[test]
     fn test_read_resource_packs(){
         let profile_name = "new_profile";
         let mut new_profile = LocalProfile::new(profile_name);
-        let result =new_profile.read_resource_packs();
+        let result = new_profile.read_addons(AddonType::ResourcePack);
         assert!( result.is_ok());
-        assert_eq!(new_profile.resource_packs.unwrap().len(),2)
+        assert_eq!(new_profile.resource_packs.unwrap().len(),1)
     }
     #[test]
     fn test_delete_resource_pack(){
         let profile_name = "new_profile";
         let mut local_profile = LocalProfile::open(profile_name).unwrap();
-        let result = local_profile.delete_resource_pack("deleteme");
+        let result = local_profile.delete_addon("deleteme",AddonType::ResourcePack);
         dbg!(&result);
         assert!(result.is_ok());
 
@@ -414,14 +397,11 @@ mod test{
         let mut local_profile = LocalProfile::open(profile_name).unwrap();
         local_profile.mods = Some(Vec::new());
         let first_mod = Vec::from(["optifine"]);
-        let result = &local_profile.install_mods(first_mod);
+        let result = &local_profile.install_addons(first_mod,AddonType::Mod);
         println!("{:?}",local_profile);
         assert!(result.is_ok());
         assert_eq!(local_profile.mods.as_ref().unwrap().len(), 1);
 
-        // let second_mods = Vec::from(["testjar.jar"]);
-        // let _ = &local_profile.install_mods(second_mods);
-        // assert_eq!(local_profile.mods.as_ref().unwrap().len(),2);
 
     }
     #[test]
@@ -456,9 +436,9 @@ mod test{
         let mut local = LocalProfile::new("test_profile");
         local.scaffold()?;
         let profile_path = installer_config.default_game_dir.unwrap().join("profiles").join(&local.name);
-        let mut test_mod = Mod::new("testmod.jar");
-        let mut test_dep = Mod::new("testdep1.jar");
-        let mut test_dep2 = Mod::new("testdep2.jar");
+        let mut test_mod = ProfileAddon::new("testmod.jar",AddonType::Mod);
+        let mut test_dep =  ProfileAddon::new("testdep1.jar",AddonType::Mod);
+        let mut test_dep2 =  ProfileAddon::new("testdep2.jar",AddonType::Mod);
         test_mod.dependencies = Vec::from([String::from("testdep1")]);
         test_dep.dependencies = Vec::from([String::from("testdep2")]);
         test_dep2.dependencies = Vec::from([String::from("testdep1")]);
@@ -478,10 +458,12 @@ mod test{
     fn test_install_new_mods(){
         let mut local_profile:LocalProfile = LocalProfile::open("test_profile").or_else(|e| setup_test_mods()).unwrap();
         let mod_list:Vec<&str> = Vec::from(["testmod"]);
-        let install_result = local_profile.install_mods(mod_list);
-        dbg!(&local_profile);
+        let install_result = local_profile.install_addons(mod_list,AddonType::Mod);
         assert!(install_result.is_ok());
-
-
     }
+    // #[test]
+    // fn fix_addons(){
+    //     AddonManager::fix_all_addons(AddonType::Mod);
+    //     AddonManager::fix_all_addons(AddonType::ResourcePack);
+    // }
 }
