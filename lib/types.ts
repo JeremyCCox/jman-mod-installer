@@ -31,4 +31,5 @@ export interface ProfileAddon{
     location:string,
     versions:string[],
     dependencies:ProfileAddon[];
+    addonType:string,
 }

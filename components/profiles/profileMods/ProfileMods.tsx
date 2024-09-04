@@ -60,6 +60,7 @@ export default function ProfileMods({mods}:Readonly<{ mods?:ProfileAddon[] }>){
                 return (dep.name)
             });
             testList.push({
+                addonType:"Mod",
                 name:mod.name,
                 fileName:mod.fileName,
                 dependencies:depNames,
