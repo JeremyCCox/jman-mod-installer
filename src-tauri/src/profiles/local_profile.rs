@@ -46,59 +46,68 @@ impl LocalProfile{
         let installer_config = InstallerConfig::open().unwrap();
         let profile_path = installer_config.default_game_dir.unwrap();
         let local_path = profile_path.join("profiles").join(&self.name);
-        let mut mods = self.mods.clone().unwrap();
+        let mut dependencies:HashSet<String>= HashSet::new();
+        let mut mods = self.mods.clone().unwrap_or_else(|| Vec::new());
         for a in mods_list.iter(){
             let current_mod = Mod::open_remote(a)?;
+            dependencies.extend(current_mod.dependencies.clone());
             current_mod.download(&local_path)?;
             mods.push(current_mod);
         }
         self.mods = Some(mods);
+        match self.find_missing_dependencies(dependencies){
+            None => {}
+            Some(set) => {
+                let mod_names = set.iter().map(|item| item.as_str()).collect();
+                self.install_mods(mod_names)?;
+            }
+        }
         self.save_profile()?;
         Ok(())
     }
     pub fn install_new_mods(&mut self,mods_list:Vec<Mod>)->Result<(),InstallerError>{
-                let game_dir = InstallerConfig::open()?.default_game_dir.unwrap();
-                let mut installed_mods_list = self.mods.clone().unwrap();
-                let mut dependencies:HashSet<String>= HashSet::new();
-                for x in mods_list {
-                    let mut file = File::open(&x.location)?;
-                    let new_mod = x.clone();
-                    dependencies.extend(x.dependencies);
-                    let mut new_file = File::create(game_dir.join("profiles").join(&self.name).join("mods").join(x.file_name))?;
-                    io::copy(&mut file, &mut new_file)?;
-                    installed_mods_list.push(new_mod);
-                }
-                self.mods = Some(installed_mods_list);
-                match self.find_missing_dependencies(dependencies) {
-                    None => {
-                        println!("No missing dependencies")
-                    }
-                    Some(set) => {
-                        println!("There are {} dependencies missing!",set.len());
-                        let val = set.iter().map(|item| item.as_str()).collect();
-                        self.install_mods(val)?;
-                    }
-                };
+        let game_dir = InstallerConfig::open()?.default_game_dir.unwrap();
+        let mut installed_mods_list = self.mods.clone().unwrap();
+        let mut dependencies:HashSet<String>= HashSet::new();
+        for x in mods_list {
+            let mut file = File::open(&x.location)?;
+            let new_mod = x.clone();
+            dependencies.extend(x.dependencies);
+            let mut new_file = File::create(game_dir.join("profiles").join(&self.name).join("mods").join(x.file_name))?;
+            io::copy(&mut file, &mut new_file)?;
+            installed_mods_list.push(new_mod);
+        }
+        self.mods = Some(installed_mods_list);
+        match self.find_missing_dependencies(dependencies) {
+            None => {
+                println!("No missing dependencies")
+            }
+            Some(set) => {
+                println!("There are {} dependencies missing!",set.len());
+                let mod_names = set.iter().map(|item| item.as_str()).collect();
+                self.install_mods(mod_names)?;
+            }
+        };
 
-                self.save_profile()?;
-                Ok(())
-            }
-            pub fn find_missing_dependencies(&self,dependencies:HashSet<String>)->Option<HashSet<String>>{
-                let mut missing_dependencies = dependencies;
-                let mod_list = self.mods.clone().unwrap();
-                for x in mod_list {
-                    match missing_dependencies.contains(&x.name) {
-                        true => {
-                            missing_dependencies.remove(&x.name);
-                        }
-                        _ => {}
-                    }
+        self.save_profile()?;
+        Ok(())
+    }
+    pub fn find_missing_dependencies(&self,dependencies:HashSet<String>)->Option<HashSet<String>>{
+        let mut missing_dependencies = dependencies;
+        let mod_list = self.mods.clone().unwrap();
+        for x in mod_list {
+            match missing_dependencies.contains(&x.name) {
+                true => {
+                    missing_dependencies.remove(&x.name);
                 }
-                return match missing_dependencies.len() {
-                    0 => None,
-                    _ => Some(missing_dependencies)
-                }
+                _ => {}
             }
+        }
+        return match missing_dependencies.len() {
+            0 => None,
+            _ => Some(missing_dependencies)
+        }
+    }
     pub fn add_resource_pack(&mut self,pack_name:&str)->Result<(),InstallerError>{
         let rp = ResourcePack::open_remote(pack_name)?;
         let mut packs = self.resource_packs.clone().unwrap();
@@ -149,6 +158,35 @@ impl LocalProfile{
         self.resource_packs = Some(packs);
         self.save_profile()?;
     Ok(())
+    }
+    pub fn delete_mod(&mut self,mod_name:&str)->Result<(),InstallerError>{
+        let mods_dir = InstallerConfig::open().unwrap().default_game_dir.unwrap().join("profiles").join(&self.name).join("mods");
+        let readout =fs::read_dir(&mods_dir)?;
+        let mut mods = self.mods.clone().unwrap();
+        for op in readout{
+            match op{
+                Ok(entry) => {
+                    if entry.file_name().to_str().unwrap().contains(mod_name){
+                        dbg!(&entry.file_type());
+                        match entry.file_type().unwrap().is_dir() {
+                            true => {
+                                fs::remove_dir_all(&mods_dir.join(entry.file_name())).unwrap()
+                            }
+                            false => {
+                                fs::remove_file(&mods_dir.join(entry.file_name())).unwrap()
+                            }
+                        }
+                        let index = mods.iter().position(|m| m.name == mod_name).unwrap();
+                        mods.remove(index);
+                    }
+                }
+                Err(_) => {}
+            }
+
+        }
+        self.mods = Some(mods);
+        self.save_profile()?;
+        Ok(())
     }
     pub fn read_profile_manifest<S:Into<String>>(profile_name:S)->Result<Self,InstallerError>{
         let mut file_name = profile_name.into();
@@ -296,9 +334,10 @@ mod test{
     use std::fs;
     use std::fs::File;
     use serial_test::serial;
-    use crate::installer::InstallerConfig;
+    use crate::installer::{InstallerConfig, InstallerError};
+    use crate::mods::Mod;
     use crate::profiles::local_profile::LocalProfile;
-    use crate::profiles::Profile;
+    use crate::profiles::{Profile, ProfileAddon};
 
 
     #[test]
@@ -411,5 +450,38 @@ mod test{
         }
         assert!(result.is_ok());
         let _ = local.rename_profile("new_profile");
+    }
+    fn setup_test_mods()->Result<LocalProfile,InstallerError>{
+        let installer_config = InstallerConfig::open()?;
+        let mut local = LocalProfile::new("test_profile");
+        local.scaffold()?;
+        let profile_path = installer_config.default_game_dir.unwrap().join("profiles").join(&local.name);
+        let mut test_mod = Mod::new("testmod.jar");
+        let mut test_dep = Mod::new("testdep1.jar");
+        let mut test_dep2 = Mod::new("testdep2.jar");
+        test_mod.dependencies = Vec::from([String::from("testdep1")]);
+        test_dep.dependencies = Vec::from([String::from("testdep2")]);
+        test_dep2.dependencies = Vec::from([String::from("testdep1")]);
+        File::create(profile_path.join("mods").join(&test_mod.file_name)).expect("Could not create mod");
+        File::create(profile_path.join("mods").join(&test_dep.file_name)).expect("Could not create dep");
+        File::create(profile_path.join("mods").join(&test_dep2.file_name)).expect("Could not create dep2");
+        test_mod.upload(&profile_path)?;
+        test_dep.upload(&profile_path)?;
+        test_dep2.upload(&profile_path)?;
+        fs::remove_file(&profile_path.join("mods").join("testmod.jar"))?;
+        fs::remove_file(&profile_path.join("mods").join("testdep1.jar"))?;
+        fs::remove_file(&profile_path.join("mods").join("testdep2.jar"))?;
+        local.save_profile()?;
+        return Ok(local);
+    }
+    #[test]
+    fn test_install_new_mods(){
+        let mut local_profile:LocalProfile = LocalProfile::open("test_profile").or_else(|e| setup_test_mods()).unwrap();
+        let mod_list:Vec<&str> = Vec::from(["testmod"]);
+        let install_result = local_profile.install_mods(mod_list);
+        dbg!(&local_profile);
+        assert!(install_result.is_ok());
+
+
     }
 }
