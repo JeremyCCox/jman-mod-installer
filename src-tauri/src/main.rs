@@ -74,6 +74,12 @@ fn delete_local_profile(profile_name:&str)->Result<(),String>{
 fn install_missing_mods(profile_name:&str,mods_list:Vec<&str>)->Result<(),String>{
     Ok(LocalProfile::open(profile_name).unwrap().install_mods(mods_list)?)
 }
+#[tauri::command]
+fn install_new_mods(profile: &str,mod_list:Vec<Mod>)->Result<(),InstallerError>{
+    let mut local_profile = LocalProfile::open(profile)?;
+    local_profile.install_new_mods(mod_list)?;
+    Ok(())
+}
 #[tauri::command(async)]
 fn install_specified_mods(profile_name:&str,mods_list:Vec<&str>)->Result<(),String>{
     let mut local_profile = LocalProfile::open(profile_name).unwrap();
@@ -186,6 +192,7 @@ fn main() {
           create_new_profile,
           clear_installer_config,
           install_missing_mods,
+          install_new_mods,
           install_specified_mods,
           install_resource_pack,
           remove_local_resource_pack,

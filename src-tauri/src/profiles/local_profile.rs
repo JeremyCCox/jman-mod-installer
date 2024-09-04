@@ -56,6 +56,49 @@ impl LocalProfile{
         self.save_profile()?;
         Ok(())
     }
+    pub fn install_new_mods(&mut self,mods_list:Vec<Mod>)->Result<(),InstallerError>{
+                let game_dir = InstallerConfig::open()?.default_game_dir.unwrap();
+                let mut installed_mods_list = self.mods.clone().unwrap();
+                let mut dependencies:HashSet<String>= HashSet::new();
+                for x in mods_list {
+                    let mut file = File::open(&x.location)?;
+                    let new_mod = x.clone();
+                    dependencies.extend(x.dependencies);
+                    let mut new_file = File::create(game_dir.join("profiles").join(&self.name).join("mods").join(x.file_name))?;
+                    io::copy(&mut file, &mut new_file)?;
+                    installed_mods_list.push(new_mod);
+                }
+                self.mods = Some(installed_mods_list);
+                match self.find_missing_dependencies(dependencies) {
+                    None => {
+                        println!("No missing dependencies")
+                    }
+                    Some(set) => {
+                        println!("There are {} dependencies missing!",set.len());
+                        let val = set.iter().map(|item| item.as_str()).collect();
+                        self.install_mods(val)?;
+                    }
+                };
+
+                self.save_profile()?;
+                Ok(())
+            }
+            pub fn find_missing_dependencies(&self,dependencies:HashSet<String>)->Option<HashSet<String>>{
+                let mut missing_dependencies = dependencies;
+                let mod_list = self.mods.clone().unwrap();
+                for x in mod_list {
+                    match missing_dependencies.contains(&x.name) {
+                        true => {
+                            missing_dependencies.remove(&x.name);
+                        }
+                        _ => {}
+                    }
+                }
+                return match missing_dependencies.len() {
+                    0 => None,
+                    _ => Some(missing_dependencies)
+                }
+            }
     pub fn add_resource_pack(&mut self,pack_name:&str)->Result<(),InstallerError>{
         let rp = ResourcePack::open_remote(pack_name)?;
         let mut packs = self.resource_packs.clone().unwrap();

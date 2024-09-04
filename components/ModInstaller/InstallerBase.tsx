@@ -1,4 +1,4 @@
-import {QueryClient, QueryClientProvider, useQuery} from "react-query";
+import {useQuery} from "react-query";
 import {type} from "@tauri-apps/api/os";
 import MinecraftFinder from "./MinecraftFinder.tsx";
 
