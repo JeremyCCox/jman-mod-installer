@@ -1,7 +1,8 @@
-import React from "react";
+import  {useState} from "react";
+import {ProfileAddon} from "../../../lib/types.ts";
 import LoadingSpinner from "../../LoadingSpinner.tsx";
 
-export default function ProfileMods({mods}:Readonly<{ mods:any }>){
+export default function ProfileMods({mods}:Readonly<{ mods?:ProfileAddon[] }>){
 
 
     if(mods){
@@ -12,8 +13,8 @@ export default function ProfileMods({mods}:Readonly<{ mods:any }>){
                 <div className={'max-h-60 border-2 border-black overflow-y-auto'}>
                     {mods.map(mod=>{
                         return(
-                            <p className={''} key={mod}>
-                                {mod}
+                            <p className={''} key={mod.name}>
+                                {mod.name}
                             </p>
                         )
                     })}

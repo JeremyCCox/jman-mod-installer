@@ -16,8 +16,13 @@ export default function RemoteProfileInfo({profileName}:Readonly<{profileName:st
         // @ts-ignore
         invoke('download_sftp_profile', {profileName: e.currentTarget.name}).then((res:string)=>{
             queryClient.invalidateQueries("profiles")
+            queryClient.invalidateQueries(["list_local_profiles"])
+            queryClient.invalidateQueries(["list_remote_profiles"])
         }).catch((err:string)=>{
         }).finally(()=>{
+
+            queryClient.refetchQueries(["list_remote_profiles"])
+            queryClient.refetchQueries(["list_local_profiles"])
             queryClient.refetchQueries("profiles")
             setLoading(false)
         })
@@ -75,8 +80,8 @@ export default function RemoteProfileInfo({profileName}:Readonly<{profileName:st
                                         <h3 className={'text-center font-bold text-2xl'}>Mods</h3>
                                         {remoteProfile.data.mods?.map(mod=>{
                                             return(
-                                                <p className={''} key={mod}>
-                                                    {mod}
+                                                <p className={''} key={mod.name}>
+                                                    {mod.name}
                                                 </p>
                                             )
                                         })}

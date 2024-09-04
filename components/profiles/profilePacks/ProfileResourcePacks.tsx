@@ -1,17 +1,14 @@
 import React, {useEffect} from "react";
-import {useQuery} from "react-query";
+import {useQuery, UseQueryResult} from "react-query";
 import {invoke} from "@tauri-apps/api";
 import ResourcePack from "./ResourcePack.tsx";
+import {ProfileAddon} from "../../../lib/types.ts";
 
-export default function ProfileResourcePacks({resourcePacks}:Readonly<{resourcePacks:any}>){
-    console.log(resourcePacks)
-    let remoteResourcePacks = useQuery(["remote-resource-packs"],async () => {
+export default function ProfileResourcePacks({resourcePacks}:Readonly<{resourcePacks?:ProfileAddon[]}>){
+    let remoteResourcePacks:UseQueryResult<ProfileAddon[]> = useQuery(["remote-resource-packs"],async () => {
         return await invoke("read_remote_resource_packs")
     })
 
-    useEffect(()=>{
-        console.log(remoteResourcePacks)
-    },[remoteResourcePacks])
     if(resourcePacks){
         return(
             <div className={'m-2'}>

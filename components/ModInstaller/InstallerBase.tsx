@@ -14,7 +14,7 @@ export default function InstallerBase(){
                 osInfo.error?
                     <>Could not verify operating system!</>
                     :
-                    <div className={'m-16'}>
+                    <div className={'m-16 relative'}>
                         <MinecraftFinder osType={osInfo.data||"Windows_NT"}/>
                     </div>
 

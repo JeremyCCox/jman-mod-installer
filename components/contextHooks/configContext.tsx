@@ -12,7 +12,6 @@ export function ConfigProvider({children}:Readonly<{ children?:ReactNode }>){
         return invoke<boolean>("attempt_remote_connection_config").then((res)=>{
             return{success:res}
         }).catch(err=>{
-            console.log(err)
             return({success:false})
         });
     })
@@ -48,7 +47,6 @@ export function ConfigProvider({children}:Readonly<{ children?:ReactNode }>){
             return false
         })
         await queryClient.refetchQueries("login")
-        console.log(result)
         return result
     }
 
@@ -70,7 +68,6 @@ export function useConfig(){
 }
 export function ConfigValid({children}:Readonly<{children?:ReactNode}>){
     const config = useConfig();
-    console.log(config.accessQuery)
     return(
         <>
             {config.accessQuery.isLoading?

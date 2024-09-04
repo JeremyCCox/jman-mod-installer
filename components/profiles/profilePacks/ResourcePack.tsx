@@ -13,14 +13,21 @@ export default function ResourcePack({pack,installed}:Readonly<{pack:any,install
         await invoke("remove_local_resource_pack", {profileName:searchParams.get("profile"),packName:pack.name})
         await queryClient.refetchQueries(["local-profiles",searchParams.get("profile")])
     }
-
     if(installed){
         return(
-            <div className={'text-green-500 flex '}>
+            <div className={'text-green-500 flex items-center relative'}>
                 <p>
                     {pack.name}
                 </p>
-                <button onClick={deletePack}>Delete</button>
+                <span className={'w-8 text-center font-bold text-lg'}>
+                    {pack.dependencies?.length}
+                </span>
+                <button className={'max-w-[15%]'} onClick={deletePack}>Delete</button>
+                <div className={'top-full w-full absolute border-black border-2 bg-gray-300'}>
+                    {pack.dependencies?.map(value => {
+                        return (<span>{value.name}</span>)
+                    })}
+                </div>
             </div>
         )
     }else{
