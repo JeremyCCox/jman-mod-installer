@@ -2,20 +2,20 @@ export interface LauncherProfile{
     created?:string,
     game_dir?:string,
     icon?:string,
-    last_version_id?:string,
+    lastVersionId?:string,
     name?:string,
 }
 export interface RemoteProfile{
     name:string,
-    mods?:[string],
-    launcher_profile?:LauncherProfile;
-    resource_packs?:[string],
+    mods?:ProfileAddon[],
+    launcherProfile?:LauncherProfile;
+    resourcePacks?:ProfileAddon[],
 }
 export interface LocalProfile{
     name:string,
-    mods?:[string],
-    launcher_profile?:LauncherProfile;
-    resource_packs?:[string],
+    mods?:ProfileAddon[],
+    launcherProfile?:LauncherProfile;
+    resourcePacks?:ProfileAddon[],
 }
 export interface InstallerProfile{
     defaultGameDir:string,
@@ -23,4 +23,12 @@ export interface InstallerProfile{
     sftpPort?:number,
     sftpUsername?:string,
     sftpPassword?:string
+}
+
+export interface ProfileAddon{
+    name:string,
+    fileName:string,
+    location:string,
+    versions:string[],
+    dependencies:ProfileAddon[];
 }

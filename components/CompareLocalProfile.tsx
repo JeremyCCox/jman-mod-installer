@@ -48,8 +48,15 @@ export default function CompareLocalProfile({profileName}:Readonly<{ profileName
     const compareProfileInfo = useQuery(["compare_profiles",profileName],async () => {
         let remote = await invoke<RemoteProfile>("read_specific_remote_profile", {profileName})
         let local = await invoke<LocalProfile>("read_specific_local_profile", {profileName})
-        let missing = remote.mods?.filter(x => !local.mods?.includes(x))||[];
-        let extras = local.mods?.filter(x => !remote.mods?.includes(x))||[];
+        let missing = remote.mods?.filter((remote) => !local.mods?.find(({name})=>name === remote.name))||[];
+        let extras = local.mods?.filter((local) => !remote.mods?.find(({name})=>name === local.name))||[];
+        if(!local.mods){
+            missing = remote.mods;
+        }
+        if(!remote.mods){
+            extras = local.mods;
+        }
+        console.log({missing,extras})
         return({missing,extras})
     })
     return(

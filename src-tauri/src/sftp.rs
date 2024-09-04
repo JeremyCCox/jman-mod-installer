@@ -2,12 +2,12 @@ use std::fs::File;
 use std::{fs, io};
 use std::io::{Write};
 use std::path::{Path, PathBuf};
-use serde::{Deserialize, Serialize};
 use ssh2::{Error, FileStat, Sftp};
+use crate::addons::{AddonType, ProfileAddon};
 use crate::installer::{InstallerConfig, InstallerError};
 use crate::launcher::{LauncherProfile, LauncherProfiles};
 use crate::mc_profiles::{create_mods_folder, create_profile,  list_profiles_mods};
-use crate::profiles::Profile;
+use crate::profiles::{Profile};
 use crate::profiles::remote_profile::RemoteProfile;
 
 const SFTP_PROFILES_DIR: &str = "/upload/profiles/";
@@ -82,33 +82,32 @@ pub fn sftp_list_dir(path: &Path) -> Result<Vec<(PathBuf, FileStat)>, Error>{
     let sftp =  InstallerConfig::open().unwrap().sftp_safe_connect().expect("Could not connect!");
     sftp.readdir(path)
 }
-pub fn sftp_list_mods(profile_name:&str)->Result<Vec<String>,InstallerError>{
-    let sftp =  InstallerConfig::open().unwrap().sftp_safe_connect().expect("Could not establish SFTP connection");
-
-    let mut mods_list = Vec::new();
-    match sftp.readdir(PathBuf::from(SFTP_PROFILES_DIR).join(profile_name).join("mods").as_path()) {
-        Ok(dir_readout) => {
-            for i in dir_readout.iter(){
-                let file_name = i.0.file_name().unwrap();
-                mods_list.push(file_name.to_str().unwrap().to_string())
-            }
-
-            Ok(mods_list)
-        }
-        Err(err) => {
-            Err(InstallerError::Ssh2(err))
-        }
-    }
-}
+// pub fn sftp_list_addons(profile_name:&str,addon_type: AddonType)->Result<Vec<ProfileAddon>,InstallerError>{
+//     let sftp =  InstallerConfig::open().unwrap().sftp_safe_connect().expect("Could not establish SFTP connection");
+//     let mut mods_list:Vec<ProfileAddon> = Vec::new();
+//     match sftp.readdir(PathBuf::from(SFTP_PROFILES_DIR).join(profile_name).join("mods").as_path()) {
+//         Ok(dir_readout) => {
+//             for i in dir_readout.iter(){
+//                 let file_name = i.0.file_name().unwrap();
+//                 mods_list.push(ProfileAddon::open_remote(file_name.to_str().unwrap()).unwrap());
+//             }
+//
+//             Ok(mods_list)
+//         }
+//         Err(err) => {
+//             Err(InstallerError::Ssh2(err))
+//         }
+//     }
+// }
 pub fn sftp_read_remote_profiles()->Result<Vec<RemoteProfile>,InstallerError>{
     let mut remote_profiles:Vec<RemoteProfile> = Vec::new();
     match sftp_list_dir(PathBuf::from(SFTP_PROFILES_DIR).as_path()){
         Ok(readout) => {
             for i in readout.iter(){
                 if i.1.is_dir(){
-                    let mut remote_profile = RemoteProfile::new(i.0.file_name().unwrap().to_str().unwrap());
-                    remote_profile.mods = Some(sftp_list_mods(remote_profile.name.as_str())?);
-                    remote_profile.launcher_profile = Some(sftp_read_launcher_profile(remote_profile.name.as_str())?);
+                    let mut remote_profile = RemoteProfile::open(i.0.file_name().unwrap().to_str().unwrap())?;
+                    // remote_profile.mods = Some(sftp_list_mods(remote_profile.name.as_str())?);
+                    // remote_profile.launcher_profile = Some(sftp_read_launcher_profile(remote_profile.name.as_str())?);
                     remote_profiles.push(remote_profile);
                 }
             }
@@ -323,7 +322,7 @@ pub fn sftp_create_profile_dirs(profile_name: &str) -> Result<(), InstallerError
 #[cfg(test)]
 mod tests {
     use serial_test::serial;
-    use crate::profiles::local_profile::LocalProfile;
+    use crate::addons::AddonType;
     use crate::profiles::Profile;
     use super::*;
 
@@ -358,14 +357,14 @@ mod tests {
     //     }
     //     assert!(true);
     // }
-    #[test]
-    fn list_mods(){
-        
-        let result = sftp_list_mods("new_profile").unwrap();
-        println!("{:?}",result);
-        assert!(result.contains(&String::from("testjar.jar")))
-
-    }
+    // #[test]
+    // fn list_mods(){
+    //
+    //     let result = sftp_list_addons("new_profile",AddonType::Mod).unwrap();
+    //     println!("{:?}",result);
+    //     assert!(result.iter().any(|mo| mo.name == String::from("optifine")))
+    //
+    // }
     #[test]
     fn upload_file(){
         let remote_path = PathBuf::from("/upload/test.file");

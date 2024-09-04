@@ -12,6 +12,14 @@ export default function LocalProfile({profileName}:Readonly<{ profileName: strin
     const queryClient = useQueryClient();
     const [searchParams,setSearchParams] = useSearchParams()
     const [loading,setLoading] =useState(false);
+    const refreshProfile=async ()=>{
+        setLoading(true)
+        await invoke("verify_profile_files", {profileName});
+        await queryClient.refetchQueries(["local-profiles",profileName]);
+        await queryClient.refetchQueries(["compare_profiles",profileName])
+
+        setLoading(false)
+    }
     const copyProfile=async (e: React.MouseEvent<HTMLButtonElement, MouseEvent>)=>{
         setLoading(true)
         e.preventDefault()
@@ -21,6 +29,7 @@ export default function LocalProfile({profileName}:Readonly<{ profileName: strin
         // console.log(await copyFile(`${path}\\profiles\\${e.currentTarget.name}`,`${path}\\profiles\\${e.currentTarget.name}-copy`,{recursive:true}));
     }
     const openProfileLocation=async (e: React.MouseEvent<HTMLButtonElement, MouseEvent>)=>{
+        e.preventDefault();
         setLoading(true)
         // @ts-ignore
         await invoke('profile_location',{profileName:searchParams.get("profile")}).then((res)=>{
@@ -31,7 +40,7 @@ export default function LocalProfile({profileName}:Readonly<{ profileName: strin
             setLoading(false)
         });
     }
-    const listProfileMods= async (e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
+    const uploadProfile= async (e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
         setLoading(true)
         // @ts-ignore
         await invoke('upload_local_profile', {profileName: e.currentTarget.name}).then((res:string)=>{
@@ -53,6 +62,8 @@ export default function LocalProfile({profileName}:Readonly<{ profileName: strin
         }).finally(()=>{
             setTimeout(()=>{
                 queryClient.refetchQueries("profiles")
+                queryClient.refetchQueries(["list_remote_profiles"])
+                queryClient.refetchQueries(["list_local_profiles"])
                 searchParams.set("profile","")
                 setSearchParams(searchParams)
             },1500)
@@ -71,7 +82,7 @@ export default function LocalProfile({profileName}:Readonly<{ profileName: strin
                 {profileName}
             </h3>
             <div className={'flex flex-wrap justify-evenly w-full '}>
-                <button className={'w-24 h-24 m-2'} disabled={loading} name={profileName} type={'button'} onClick={listProfileMods}>
+                <button className={'w-24 h-24 m-2'} disabled={loading} name={profileName} type={'button'} onClick={uploadProfile}>
                     Upload
                 </button>
                 <button className={'w-24 h-24 m-2'} disabled={loading} name={profileName} type={'button'} onClick={deleteProfile}>
@@ -82,6 +93,9 @@ export default function LocalProfile({profileName}:Readonly<{ profileName: strin
                 </button>
                 <button className={'w-24 h-24 m-2'} disabled={loading}  name={profileName} onClick={openProfileLocation} >
                     Open
+                </button>
+                <button className={'w-24 h-24 m-2'} disabled={loading}  name={profileName} onClick={refreshProfile} >
+                    Refresh
                 </button>
             </div>
                 <CompareLocalProfile profileName={profileName}/>

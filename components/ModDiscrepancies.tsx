@@ -1,6 +1,7 @@
 import LoadingSpinner from "./LoadingSpinner.tsx";
+import {ProfileAddon} from "../lib/types.ts";
 
-export default function ModDiscrepancies({modlist,notice, callback,callbackTitle,loading=false}:Readonly<{modlist:string[],notice:string,callback:any,callbackTitle:string,loading?:boolean}>){
+export default function ModDiscrepancies({modlist,notice, callback,callbackTitle,loading=false}:Readonly<{modlist:ProfileAddon[],notice:string,callback:any,callbackTitle:string,loading?:boolean}>){
 
     return(
         <>
@@ -13,7 +14,7 @@ export default function ModDiscrepancies({modlist,notice, callback,callbackTitle
             {modlist.map(mod=>{
                 return(
                     <p className={'text-sm overflow-x-auto text-nowrap font-bold py-1 my-1'}>
-                        {mod}
+                        {mod.name}
                     </p>
                 )
             })}

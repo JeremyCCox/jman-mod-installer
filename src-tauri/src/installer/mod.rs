@@ -1,9 +1,9 @@
 use std::fs::File;
 use std::{fs, io};
 use std::error::Error;
-use std::fmt::{Display, Formatter, write};
+use std::fmt::{Display, Formatter};
 use std::io::Write;
-use std::net::{IpAddr, Ipv4Addr, TcpStream, ToSocketAddrs};
+use std::net::{TcpStream, ToSocketAddrs};
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::Duration;
@@ -30,24 +30,30 @@ impl ConfigError{
             message: "no sftp_server found in config!".to_string(),
         }
     }
-    fn no_port()->Self{
-        Self{
-            code:2,
-            message: "no sftp_port found in config!".to_string(),
-        }
-    }fn no_username()->Self{
-        Self{
-            code:3,
-            message: "no sftp_username found in config!".to_string(),
-        }
-    }
-    fn no_password()->Self{
-        Self{
-            code:4,
-            message: "no sftp_password found in config!".to_string(),
-        }
-    }
 
+    // fn no_port()->Self{
+    //     Self{
+    //         code:2,
+    //         message: "no sftp_port found in config!".to_string(),
+    //     }
+    // }fn no_username()->Self{
+    //     Self{
+    //         code:3,
+    //         message: "no sftp_username found in config!".to_string(),
+    //     }
+    // }
+    // fn no_password()->Self{
+    //     Self{
+    //         code:4,
+    //         message: "no sftp_password found in config!".to_string(),
+    //     }
+    // }
+    fn no_addon_type()->Self{
+        Self{
+            code:5,
+            message: "no addon type!".to_string(),
+        }
+    }
 }
 #[derive(Debug,thiserror::Error)]
 pub enum InstallerError{
@@ -168,7 +174,7 @@ impl InstallerConfig{
         }
     }
     pub fn sftp_connect(&self)->Result<Sftp,InstallerError>{
-        let address = match &self.sftp_server.clone(){
+        match &self.sftp_server.clone(){
             Some(address)=>address,
             None=>{
                 let error = InstallerError::Config(ConfigError::no_address());
@@ -248,7 +254,6 @@ mod tests{
     use crate::installer::{InstallerConfig, InstallerError};
     use crate::mc_profiles::create_mods_folder;
     const BASE_PATH_STRING: &str = "C:/Users/Jeremy/AppData/Roaming/.minecraft";
-    const SFTP_PROFILES_DIR: &str = "/upload/profiles/";
     pub fn setup_test_profile()->Result<(),InstallerError>{
         let installer_config:InstallerConfig = InstallerConfig::test_new();
         installer_config.test_save()
