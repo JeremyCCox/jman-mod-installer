@@ -2,12 +2,12 @@ use std::fs::File;
 use std::{fs, io};
 use std::io::{Write};
 use std::path::{Path, PathBuf};
-use serde::{Deserialize, Serialize};
 use ssh2::{Error, FileStat, Sftp};
 use crate::installer::{InstallerConfig, InstallerError};
 use crate::launcher::{LauncherProfile, LauncherProfiles};
 use crate::mc_profiles::{create_mods_folder, create_profile,  list_profiles_mods};
-use crate::profiles::Profile;
+use crate::mods::Mod;
+use crate::profiles::{Profile, ProfileAddon};
 use crate::profiles::remote_profile::RemoteProfile;
 
 const SFTP_PROFILES_DIR: &str = "/upload/profiles/";
@@ -82,15 +82,15 @@ pub fn sftp_list_dir(path: &Path) -> Result<Vec<(PathBuf, FileStat)>, Error>{
     let sftp =  InstallerConfig::open().unwrap().sftp_safe_connect().expect("Could not connect!");
     sftp.readdir(path)
 }
-pub fn sftp_list_mods(profile_name:&str)->Result<Vec<String>,InstallerError>{
+pub fn sftp_list_mods(profile_name:&str)->Result<Vec<Mod>,InstallerError>{
     let sftp =  InstallerConfig::open().unwrap().sftp_safe_connect().expect("Could not establish SFTP connection");
 
-    let mut mods_list = Vec::new();
+    let mut mods_list:Vec<Mod> = Vec::new();
     match sftp.readdir(PathBuf::from(SFTP_PROFILES_DIR).join(profile_name).join("mods").as_path()) {
         Ok(dir_readout) => {
             for i in dir_readout.iter(){
                 let file_name = i.0.file_name().unwrap();
-                mods_list.push(file_name.to_str().unwrap().to_string())
+                mods_list.push(Mod::open_remote(file_name.to_str().unwrap()).unwrap());
             }
 
             Ok(mods_list)
@@ -323,7 +323,6 @@ pub fn sftp_create_profile_dirs(profile_name: &str) -> Result<(), InstallerError
 #[cfg(test)]
 mod tests {
     use serial_test::serial;
-    use crate::profiles::local_profile::LocalProfile;
     use crate::profiles::Profile;
     use super::*;
 
@@ -363,7 +362,7 @@ mod tests {
         
         let result = sftp_list_mods("new_profile").unwrap();
         println!("{:?}",result);
-        assert!(result.contains(&String::from("testjar.jar")))
+        assert!(result.iter().any(|mo| mo.name == String::from("optifine")))
 
     }
     #[test]

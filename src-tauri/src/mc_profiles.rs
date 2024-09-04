@@ -1,12 +1,10 @@
-use std::{env, fs, io};
+use std::{env, fs};
 use std::io::{Write};
 use std::path::{PathBuf};
 use std::process::Command;
 use serde::{Deserialize, Serialize};
 use crate::installer::{InstallerConfig,InstallerError};
 use crate::launcher::{LauncherProfile, LauncherProfiles};
-use crate::profiles::remote_profile::RemoteProfile;
-use crate::sftp::{copy_dir_all, sftp_list_dir};
 
 const SFTP_PROFILES_DIR: &str = "/upload/profiles/";
 

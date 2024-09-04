@@ -1,5 +1,4 @@
 use std::path::PathBuf;
-use serde::{Deserialize, Serialize};
 use crate::installer::InstallerError;
 use crate::launcher::LauncherProfiles;
 use crate::profiles::local_profile::LocalProfile;
@@ -25,13 +24,16 @@ impl From<RemoteProfile> for GameProfile{
         GameProfile::Remote(value)
     }
 }
-impl From<&RemoteProfile> for LocalProfile{
-    fn from(value: &RemoteProfile) -> LocalProfile {
-        let mut local = LocalProfile::new(&value.name);
-        local.scaffold().expect("Could not scaffold local profile");
-        local.launcher_profile=value.launcher_profile.clone();
-        LauncherProfiles::open().insert_profile(local.launcher_profile.clone().unwrap(),&value.name).expect("Could not insert Launcher Profile");
-        local
+impl From<RemoteProfile> for LocalProfile{
+    fn from(value: RemoteProfile) -> LocalProfile {
+        Self{
+            name: value.name,
+            mods: value.mods,
+            version:value.version,
+            launcher_profile: value.launcher_profile,
+            resource_packs: value.resource_packs,
+            config: value.config,
+        }
     }
 }
 pub trait Profile{
@@ -41,7 +43,6 @@ pub trait Profile{
     fn open(profile_name:&str)->Result<Self,InstallerError> where Self: Sized;
     fn copy (self,copy_name:&str)->Result<Self,InstallerError> where Self: Sized;
     fn delete(self)->Result<(),InstallerError>;
-    fn read_mods(&mut self)->Result<(),InstallerError>;
     fn read_resource_packs(&mut self)->Result<(),InstallerError>;
     fn write_launcher_profile(&mut self)->Result<(),InstallerError>;
     fn read_launcher_profile(&mut self)->Result<(),InstallerError>;

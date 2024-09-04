@@ -4,18 +4,50 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use crate::installer::{InstallerConfig, InstallerError};
 use crate::profiles::ProfileAddon;
+use crate::resource_packs::ResourcePack;
 
 const SFTP_MODS_PATH:&str = "/upload/mods";
+const SFTP_RESOURCE_PACKS_PATH: &str ="/upload/resource_packs";
+
+pub struct AddonManager{
+
+}
+impl AddonManager{
+    pub fn read_remote_mods()->Result<Vec<Mod>,InstallerError>{
+        let sftp = InstallerConfig::open().unwrap().sftp_safe_connect().unwrap();
+        let remote_path = PathBuf::from(SFTP_MODS_PATH);
+        let mut packs:Vec<Mod> = Vec::new();
+        let val = sftp.readdir(remote_path.as_path())?;
+        for x in val {
+            if x.1.is_dir(){
+                packs.push(Mod::open_remote(x.0.file_name().unwrap().to_str().unwrap())?)
+            }
+        }
+        Ok(packs)
+    }
+    pub fn read_remote_packs()->Result<Vec<ResourcePack>,InstallerError>{
+        let sftp = InstallerConfig::open().unwrap().sftp_safe_connect().unwrap();
+        let remote_path = PathBuf::from(SFTP_RESOURCE_PACKS_PATH);
+        let mut packs:Vec<ResourcePack> = Vec::new();
+        let val = sftp.readdir(remote_path.as_path())?;
+        for x in val {
+            if x.1.is_dir(){
+                packs.push(ResourcePack::open_remote(x.0.file_name().unwrap().to_str().unwrap())?)
+            }
+        }
+        Ok(packs)
+    }
+}
+
 #[derive(Serialize,Deserialize,Debug,Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Mod{
-    name:String,
-    file_name:String,
-    location:PathBuf,
-    versions:Vec<String>,
-    dependencies:Vec<String>
+    pub name:String,
+    pub file_name:String,
+    pub location:PathBuf,
+    pub versions:Vec<String>,
+    pub dependencies:Vec<String>
 }
-
 impl ProfileAddon for Mod{
     fn new(filename:&str)->Self{
         let v:Vec<&str> = filename.split(".").collect::<Vec<&str>>();

@@ -1,19 +1,22 @@
 use std::{fs, io};
 use std::io::Write;
 use std::path::PathBuf;
+use log::__private_api::loc;
 use serde::{Deserialize, Serialize};
 use crate::installer::{InstallerConfig, InstallerError};
 use crate::launcher::LauncherProfile;
+use crate::mods::Mod;
 use crate::profiles::local_profile::LocalProfile;
 use crate::profiles::{Profile, ProfileAddon, SFTP_PROFILES_DIR};
 use crate::resource_packs::ResourcePack;
 use crate::sftp::sftp_remove_dir;
 
 
-#[derive(Serialize,Deserialize,Debug)]
+#[derive(Serialize,Deserialize,Debug,Clone)]
 pub struct RemoteProfile{
     pub name:String,
-    pub mods:Option<Vec<String>>,
+    pub version:Option<String>,
+    pub mods:Option<Vec<Mod>>,
     pub launcher_profile:Option<LauncherProfile>,
     pub resource_packs:Option<Vec<ResourcePack>>,
     pub config:Option<Vec<String>>,
@@ -23,6 +26,7 @@ impl From<LocalProfile> for RemoteProfile{
         Self{
             name: value.name,
             mods: value.mods,
+            version:value.version,
             launcher_profile: value.launcher_profile,
             resource_packs: value.resource_packs,
             config: value.config,
@@ -38,35 +42,40 @@ impl RemoteProfile{
     //     }
     // }
     pub fn install_profile(self)->Result<LocalProfile,InstallerError>{
-        let mut local_profile = LocalProfile::new(&self.name);
+        dbg!(&self);
+        let mut local_profile = LocalProfile::from(self.clone());
+        // dbg!(&local_profile.mods);
         let mut new_launcher_profile = self.launcher_profile.clone().unwrap();
         new_launcher_profile.game_dir = Some(InstallerConfig::open().unwrap().default_game_dir.unwrap().join("profiles").join(&self.name));
         local_profile.launcher_profile = Some(new_launcher_profile);
         local_profile.scaffold()?;
         local_profile.write_launcher_profile()?;
-
+        local_profile.save_profile()?;
+        // dbg!(&local_profile);
         self.install_mods()?;
+        // dbg!(&local_profile.mods);
         Ok(local_profile)
     }
     pub fn install_mods(self)->Result<(),InstallerError>{
         let installer_config = InstallerConfig::open().unwrap();
-        let sftp = installer_config.sftp_safe_connect()?;
-        let remote_path = PathBuf::from(SFTP_PROFILES_DIR).join(&self.name).join("mods");
-        let profile_path = installer_config.default_game_dir.unwrap();
-        let local_path = &profile_path.join("profiles").join(&self.name).join("mods");
-        let mods_list:Vec<String> = self.mods.unwrap_or_else(|| Vec::new());
-        println!("{:?}",local_path);
-        let current_mods:Vec<String> = fs::read_dir(local_path.as_path()).expect("could not list mods directory").into_iter().map(|x| x.unwrap().file_name().into_string().unwrap()).collect();
-        for mod_name in mods_list{
-            match current_mods.contains(&mod_name) {
-                true => {}
-                false => {
-                    let mut remote_file = sftp.open(&remote_path.join(&mod_name)).expect("Could not find remote mod File");
-                    let mut local_file = fs::File::create(&local_path.join(&mod_name).as_path()).expect("Could not create local mod file!");
-                    io::copy(&mut remote_file, &mut local_file).expect("Could not write file!");
-                }
-            }
-        };
+        // let sftp = installer_config.sftp_safe_connect()?;
+        // let remote_path = PathBuf::from(SFTP_PROFILES_DIR).join(&self.name).join("mods");
+        let profile_path = installer_config.default_game_dir.unwrap().join("profiles").join(&self.name);
+        let mods_list:Vec<Mod> = self.mods.clone().unwrap_or_else(|| Vec::new());
+        println!("{:?}",mods_list);
+        for m in mods_list.iter(){
+            dbg!(&m);
+            m.download(&profile_path).unwrap()
+        }
+        // let installed_mods:Vec<Mod> = fs::read_dir(local_path.as_path()).expect("could not list mods directory").into_iter().map(|x| Mod::open_remote(x.unwrap().file_name().to_str().unwrap()).unwrap()).collect();
+        // for current_mod in mods_list{
+        //     match installed_mods.iter().find(|&m| m.name == current_mod.name){
+        //         None => {
+        //             current_mod.download(&profile_path).unwrap()
+        //         }
+        //         Some(_) => {}
+        //     }
+        // };
         Ok(())
     }
     pub fn save_profile(&self)->Result<(),InstallerError>{
@@ -92,6 +101,7 @@ impl Profile for RemoteProfile{
         Self{
             name:profile_name.parse().unwrap(),
             mods: None,
+            version:None,
             launcher_profile: None,
             resource_packs: None,
             config: None,
@@ -128,7 +138,6 @@ impl Profile for RemoteProfile{
             }
             Err(_) => {
                 let mut profile = Self::new(profile_name);
-                profile.read_mods()?;
                 profile.read_launcher_profile()?;
                 let _ = profile.save_profile();
                 Ok(profile)
@@ -145,19 +154,7 @@ impl Profile for RemoteProfile{
         new_launcher_profile.name = Some(copy_name.to_string());
         new_profile.launcher_profile= Some(new_launcher_profile);
         new_profile.write_launcher_profile()?;
-        let remote_path = PathBuf::from(SFTP_PROFILES_DIR);
-        let mut mods_names :Vec<String>=Vec::new();
-        let remote_mods = sftp.readdir(remote_path.join(&self.name).join("mods").as_path())?;
-        for mods in remote_mods {
-            // let mut  = fs::File::open(&a).expect("Could not find File!");
-            let file_name = mods.0.file_name().unwrap().to_str().unwrap();
-            mods_names.push(mods.0.file_name().unwrap().to_str().unwrap().to_string());
-            println!("{:?}",remote_path.join("mods").join(file_name));
-            let mut remote_mod = sftp.open(remote_path.join(&self.name).join("mods").join(file_name).as_path()).expect("Could not open mod");
-            let mut new_mod = sftp.create(remote_path.join(copy_name).join("mods").join(file_name).as_path()).expect("Could not create new mod location");
-            io::copy(&mut remote_mod, &mut new_mod).expect("Could not write new mod!");
-        }
-        new_profile.mods = Some(mods_names);
+        new_profile.mods = self.mods;
 
         Ok(new_profile)
 
@@ -169,23 +166,7 @@ impl Profile for RemoteProfile{
         Ok(())
     }
 
-    fn read_mods(&mut self) -> Result<(), InstallerError> {
-        let sftp = InstallerConfig::open().unwrap().sftp_safe_connect().expect("Could not establish SFTP connection");
-        match sftp.readdir(PathBuf::from(SFTP_PROFILES_DIR).join(&self.name).join("mods").as_path()) {
-            Ok(dir_readout) => {
-                let mut mod_names = Vec::new();
-                for i in dir_readout.iter() {
-                    let file_name = i.0.file_name().unwrap();
-                    mod_names.push(file_name.to_str().unwrap().to_string())
-                }
-                self.mods = Some(mod_names);
-                Ok(())
-            }
-            Err(err) => {
-                Err(InstallerError::from(err))
-            }
-        }
-    }
+
 
     fn read_resource_packs(&mut self) -> Result<(), InstallerError> {
         let sftp = InstallerConfig::open().unwrap().sftp_safe_connect().expect("Could not establish SFTP connection");
@@ -292,6 +273,17 @@ mod test{
         // RemoteProfile::new(profile_name);
     }
     #[test]
+    fn test_install_profile(){
+        let profile_name = "new_profile";
+        let remote_profile = RemoteProfile::open(profile_name).unwrap();
+        let result = remote_profile.install_profile();
+        dbg!(&result);
+        assert!(&result.is_ok());
+        let local_profile = result.unwrap();
+        dbg!(&local_profile);
+
+    }
+    #[test]
     #[serial]
     fn test_delete_profile(){
         let profile_name = "new_profile";
@@ -323,6 +315,7 @@ mod test{
         let local_profile = LocalProfile::open(profile_name).unwrap();
         println!("{:?}",local_profile);
         assert!(&local_profile.mods.unwrap().len() > &0);
+
     }
     #[test]
     fn test_read_resource_packs(){

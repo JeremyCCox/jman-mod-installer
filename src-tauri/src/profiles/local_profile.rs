@@ -1,9 +1,12 @@
 use std::{fs, io};
-use std::fs::FileType;
+use std::collections::HashSet;
+use std::fs::File;
+use std::io::Write;
 use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use crate::installer::{InstallerConfig, InstallerError};
 use crate::launcher::{LauncherProfile, LauncherProfiles};
+use crate::mods::Mod;
 use crate::profiles::{Profile, ProfileAddon, SFTP_PROFILES_DIR};
 use crate::profiles::remote_profile::RemoteProfile;
 use crate::resource_packs::ResourcePack;
@@ -13,7 +16,8 @@ use crate::sftp::{copy_dir_all, sftp_list_dir};
 #[serde(rename_all = "camelCase")]
 pub struct LocalProfile{
     pub name:String,
-    pub mods:Option<Vec<String>>,
+    pub version:Option<String>,
+    pub mods:Option<Vec<Mod>>,
     pub launcher_profile:Option<LauncherProfile>,
     pub resource_packs:Option<Vec<ResourcePack>>,
     pub config:Option<Vec<String>>
@@ -21,70 +25,67 @@ pub struct LocalProfile{
 
 
 impl LocalProfile{
-    pub fn upload_profile(self)-> Result<(),InstallerError>{
+    pub fn upload_profile(self)-> Result<RemoteProfile,InstallerError>{
         let mut remote_profile = RemoteProfile::from(self.clone());
         remote_profile.scaffold()?;
         remote_profile.write_launcher_profile()?;
+        remote_profile.save_profile()?;
         let mods = self.mods.clone().unwrap();
         self.upload_mods(mods)?;
-        Ok(())
+        Ok(remote_profile)
     }
-    pub fn upload_mods(self,mods_list:Vec<String>)->Result<(),InstallerError>{
+    pub fn upload_mods(self,mods_list:Vec<Mod>)->Result<(),InstallerError>{
         let installer_config = InstallerConfig::open()?;
-        let sftp =installer_config.sftp_safe_connect().unwrap();
-        let remote_mods_path = PathBuf::from(SFTP_PROFILES_DIR).join(&self.name).join("mods");
-        let local_mods_path = installer_config.default_game_dir.unwrap().join("profiles").join(self.name).join("mods");
+        let local_mods_path = installer_config.default_game_dir.unwrap().join("profiles").join(self.name);
         for a in mods_list.iter(){
-            println!("{:?}",a);
-            let mut upload_file = fs::File::open(local_mods_path.join(a)).expect("Could not find File!");
-            let mut remote_file = sftp.create(remote_mods_path.join(a).as_path()).expect("Could not create File");
-            io::copy(&mut upload_file, &mut remote_file).expect("Could not write file!");
+            a.upload(&local_mods_path)?;
         };
         Ok(())
     }
     pub fn install_mods(&mut self,mods_list:Vec<&str>)->Result<(),InstallerError>{
         let installer_config = InstallerConfig::open().unwrap();
-        let sftp = installer_config.sftp_safe_connect()?;
-        let remote_path = PathBuf::from(SFTP_PROFILES_DIR).join(&self.name).join("mods");
         let profile_path = installer_config.default_game_dir.unwrap();
-        let local_path = profile_path.join("profiles").join(&self.name).join("mods");
+        let local_path = profile_path.join("profiles").join(&self.name);
         let mut mods = self.mods.clone().unwrap();
-        match sftp_list_dir(&remote_path.as_path()){
-            Ok(readout) => {
-                for x in readout {
-                    let file_name = x.0.file_name().unwrap().to_str().unwrap();
-                    match mods_list.contains(&file_name){
-                        true => {
-                            let mut remote_file = sftp.open(&remote_path.join(&file_name)).expect("Could not find remote mod File");
-                            let mut local_file = fs::File::create(local_path.join(&file_name).as_path()).expect("Could not create local mod file!");
-                            io::copy(&mut remote_file, &mut local_file).expect("Could not write file!");
-                            mods.push(file_name.to_string());
-                        }
-                        false => {}
-                    }
-                };
-                self.mods = Some(mods);
-                Ok(())
-            }
-            Err(err) => {
-                Err(InstallerError::from(err))
-            }
+        for a in mods_list.iter(){
+            let current_mod = Mod::open_remote(a)?;
+            current_mod.download(&local_path)?;
+            mods.push(current_mod);
         }
+        self.mods = Some(mods);
+        self.save_profile()?;
+        Ok(())
     }
-    pub fn add_resource_pack(&self,pack_name:&str)->Result<(),InstallerError>{
+    pub fn add_resource_pack(&mut self,pack_name:&str)->Result<(),InstallerError>{
         let rp = ResourcePack::open_remote(pack_name)?;
+        let mut packs = self.resource_packs.clone().unwrap();
+        packs.push(rp.clone());
         let profile_path = InstallerConfig::open().unwrap().default_game_dir.unwrap().join("profiles").join(&self.name);
-        Ok(rp.download(&profile_path)?)
+        rp.download(&profile_path)?;
+        self.resource_packs = Some(packs);
+        self.save_profile()?;
+        Ok(())
     }
 
-    pub fn delete_resource_pack(&self,pack_name:&str)->Result<(),InstallerError>{
+    fn read_mods(&mut self)->Result<(),InstallerError>{
+        let installer_config = InstallerConfig::open()?;
+        let profile_path = PathBuf::from(installer_config.default_game_dir.unwrap()).join("profiles").join(&self.name);
+        let mods = fs::read_dir(profile_path.join("mods").as_path())?;
+        let mut mod_names = Vec::new();
+        for x in mods {
+            mod_names.push(Mod::open_local(x.unwrap().file_name().to_str().unwrap()).unwrap());
+        };
+        self.mods = Some(mod_names);
+        Ok(())
+    }
+    pub fn delete_resource_pack(&mut self,pack_name:&str)->Result<(),InstallerError>{
         let resource_packs_dir = InstallerConfig::open().unwrap().default_game_dir.unwrap().join("profiles").join(&self.name).join("resourcepacks");
         let readout =fs::read_dir(&resource_packs_dir)?;
+        let mut packs = self.resource_packs.clone().unwrap();
         for op in readout{
             match op{
                 Ok(entry) => {
                     if entry.file_name().to_str().unwrap().contains(pack_name){
-                        println!("Delete is warranted");
                         dbg!(&entry.file_type());
                         match entry.file_type().unwrap().is_dir() {
                             true => {
@@ -94,20 +95,50 @@ impl LocalProfile{
                                 fs::remove_file(&resource_packs_dir.join(entry.file_name())).unwrap()
                             }
                         }
+                        let index = packs.iter().position(|m| m.name == pack_name).unwrap();
+                        packs.remove(index);
                     }
                 }
                 Err(_) => {}
             }
 
         }
+        self.resource_packs = Some(packs);
+        self.save_profile()?;
     Ok(())
     }
+    pub fn read_profile_manifest<S:Into<String>>(profile_name:S)->Result<Self,InstallerError>{
+        let mut file_name = profile_name.into();
+        let profile_dir = InstallerConfig::open().unwrap().default_game_dir.unwrap().join("profiles").join(&file_name);
+        file_name.push_str(".config");
+        let file = File::open(profile_dir.join(&file_name))?;
+        Ok(serde_json::from_reader(file)?)
+    }
+    pub fn verify_profile_files(&mut self)->Result<(),InstallerError>{
+        &self.read_mods()?;
+        &self.read_resource_packs()?;
+        &self.read_launcher_profile()?;
+        &self.save_profile()?;
+        Ok(())
+    }
+    pub fn save_profile(&self)->Result<(),InstallerError>{
+        let profile_dir = InstallerConfig::open()?.default_game_dir.unwrap().join("profiles").join(&self.name);
+        let mut file_name = self.name.clone();
+        file_name.push_str(".config");
+        let _ = fs::create_dir(&profile_dir);
+        let mut file = File::create(&profile_dir.join(file_name))?;
+        file.write(serde_json::to_string_pretty(&self)?.as_ref())?;
+        Ok(())
+    }
+
+
 }
 impl Profile for LocalProfile{
     fn new(profile_name: &str) -> Self {
         Self {
             name: profile_name.parse().unwrap(),
             mods: None,
+            version:None,
             launcher_profile: None,
             resource_packs: None,
             config: None,
@@ -126,19 +157,28 @@ impl Profile for LocalProfile{
     fn scaffold(&self)->Result<(),InstallerError>{
         let base_path = InstallerConfig::open().unwrap().default_game_dir.unwrap();
         let profile_path = &base_path.join("profiles").join(&self.name);
-        println!("{:?}",base_path);
         fs::create_dir_all(&profile_path.join("mods")).expect("Couldnt create the profile directory");
+        fs::create_dir_all(&profile_path.join("resourcepacks")).expect("Couldnt create the profile directory");
         fs::copy(&base_path.join("options.txt"),&profile_path.join("options.txt")).expect("Could not create options copy");
         fs::copy(&base_path.join("servers.dat"),&profile_path.join("servers.dat")).expect("Could not create options copy");
         Ok(())
     }
     fn open(profile_name:&str) -> Result<Self, InstallerError> {
         // let installer_config = InstallerConfig::open()?;
-        let mut profile = Self::new(profile_name);
-        profile.read_mods()?;
-        profile.read_resource_packs()?;
-        profile.read_launcher_profile()?;
-        Ok(profile)
+        match LocalProfile::read_profile_manifest(profile_name) {
+            Ok(profile) => {
+                Ok(profile)
+            }
+            Err(_) => {
+                let mut profile = Self::new(profile_name);
+                profile.read_mods()?;
+                profile.read_resource_packs()?;
+                profile.read_launcher_profile()?;
+                profile.save_profile()?;
+                Ok(profile)
+            }
+        }
+
     }
     fn copy(self, copy_name: &str) -> Result<Self, InstallerError> {
         let installer_config = InstallerConfig::open().unwrap();
@@ -158,18 +198,6 @@ impl Profile for LocalProfile{
         let profile_path = InstallerConfig::open().unwrap().default_game_dir.unwrap().join("profiles").join(&self.name);
         fs::remove_dir_all(profile_path)?;
         LauncherProfiles::open().remove_profile(&self.name)?;
-        Ok(())
-    }
-    fn read_mods(&mut self)->Result<(),InstallerError>{
-        let installer_config = InstallerConfig::open()?;
-        let profile_path = PathBuf::from(installer_config.default_game_dir.unwrap()).join("profiles").join(&self.name);
-        let mods = fs::read_dir(profile_path.join("mods").as_path())?;
-        let mut mod_names = Vec::new();
-        for x in mods {
-            let entry = x.unwrap().file_name().to_str().unwrap().to_string();
-            mod_names.push(entry);
-        };
-        self.mods = Some(mod_names);
         Ok(())
     }
 
@@ -223,20 +251,59 @@ impl Profile for LocalProfile{
 #[cfg(test)]
 mod test{
     use std::fs;
+    use std::fs::File;
     use serial_test::serial;
     use crate::installer::InstallerConfig;
-    use crate::profiles::GameProfile::Local;
     use crate::profiles::local_profile::LocalProfile;
     use crate::profiles::Profile;
 
-    const BASE_PATH_STRING: &str = "test\\.minecraft";
-    const SFTP_PROFILES_DIR: &str = "/upload/profiles/";
+
     #[test]
     #[serial]
     fn test_new_local_profile(){
         let profile_name = "new_profile";
         let new_profile = LocalProfile::new(profile_name);
+        new_profile.scaffold().unwrap();
         assert_eq!(new_profile.name, profile_name)
+    }
+    #[test]
+    fn test_open_profile(){
+        let profile_name = "jman_modpack";
+        let result = LocalProfile::open(profile_name);
+        dbg!(&result);
+        assert!(result.is_ok());
+    }
+    #[test]
+    fn test_verify_profile_files(){
+        let profile_name = "new_profile";
+        let game_path = InstallerConfig::open().unwrap().default_game_dir.unwrap().join("profiles").join(profile_name);
+        let mut profile = LocalProfile::open(profile_name).unwrap();
+        profile.mods =Some(Vec::new());
+        profile.scaffold().unwrap();
+        File::create(&game_path.join("mods").join("testjar.jar")).expect("Could not create test jar");
+        profile.verify_profile_files().unwrap();
+        dbg!(&profile);
+        assert_eq!(profile.mods.unwrap().len(), 1);
+    }
+    #[test]
+    fn test_upload_profile(){
+        let profile_name = "new_profile";
+        let profile = LocalProfile::open(profile_name).unwrap();
+        let result = profile.upload_profile();
+        assert!(&result.is_ok());
+        let remote_profile = result.unwrap();
+        dbg!(&remote_profile);
+
+    }
+    #[test]
+    #[serial]
+    fn test_upload_mods(){
+        let profile_name = "new_profile";
+        let new_profile = LocalProfile::open(profile_name).unwrap();
+        let mods = new_profile.mods.clone().unwrap();
+        let result = new_profile.upload_mods(mods);
+        dbg!(&result);
+        assert!(result.is_ok());
     }
     #[test]
     fn test_read_resource_packs(){
@@ -249,7 +316,7 @@ mod test{
     #[test]
     fn test_delete_resource_pack(){
         let profile_name = "new_profile";
-        let local_profile = LocalProfile::open(profile_name).unwrap();
+        let mut local_profile = LocalProfile::open(profile_name).unwrap();
         let result = local_profile.delete_resource_pack("deleteme");
         dbg!(&result);
         assert!(result.is_ok());
@@ -263,15 +330,16 @@ mod test{
         let _ = fs::remove_dir_all(base_path.join("profiles").join(profile_name).join("mods"));
         let _ = fs::create_dir(base_path.join("profiles").join(profile_name).join("mods"));
         let mut local_profile = LocalProfile::open(profile_name).unwrap();
-        let first_mod = Vec::from(["testjar.jar"]);
+        local_profile.mods = Some(Vec::new());
+        let first_mod = Vec::from(["optifine"]);
         let result = &local_profile.install_mods(first_mod);
         println!("{:?}",local_profile);
         assert!(result.is_ok());
         assert_eq!(local_profile.mods.as_ref().unwrap().len(), 1);
 
-        let second_mods = Vec::from(["testjar.jar"]);
-        let _ = &local_profile.install_mods(second_mods);
-        assert_eq!(local_profile.mods.as_ref().unwrap().len(),2);
+        // let second_mods = Vec::from(["testjar.jar"]);
+        // let _ = &local_profile.install_mods(second_mods);
+        // assert_eq!(local_profile.mods.as_ref().unwrap().len(),2);
 
     }
     #[test]

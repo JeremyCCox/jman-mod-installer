@@ -9,8 +9,9 @@ use serde_json::{json, Value};
 use crate::installer::{InstallerConfig, InstallerError};
 use crate::launcher::LauncherProfiles;
 use crate::mc_profiles::open_profile_location;
+use crate::mods::{AddonManager, Mod};
 use crate::profiles::local_profile::LocalProfile;
-use crate::profiles::Profile;
+use crate::profiles::{local_profile, Profile};
 use crate::sftp::{ sftp_list_dir, sftp_read_remote_profiles};
 use crate::profiles::remote_profile::RemoteProfile;
 use crate::resource_packs::{PackManager, ResourcePack};
@@ -61,7 +62,7 @@ fn clear_installer_config()->Result<(),String>{
 #[tauri::command(async)]
 fn download_sftp_profile(profile_name:&str)->Result<(),String>{
     let remote_profile =RemoteProfile::open(profile_name)?;
-    remote_profile.install_profile()?;
+    dbg!(remote_profile.install_profile()?);
     Ok(())
 }
 #[tauri::command(async)]
@@ -80,12 +81,12 @@ fn install_specified_mods(profile_name:&str,mods_list:Vec<&str>)->Result<(),Stri
 }
 #[tauri::command(async)]
 fn install_resource_pack(profile_name:&str,pack_name:&str)->Result<(),String>{
-    let local_profile = LocalProfile::open(profile_name)?;
+    let mut local_profile = LocalProfile::open(profile_name)?;
     Ok(local_profile.add_resource_pack(pack_name)?)
 }
 #[tauri::command(async)]
 fn remove_local_resource_pack(profile_name:&str,pack_name:&str)->Result<(),String>{
-    let local_profile = LocalProfile::open(profile_name)?;
+    let mut local_profile = LocalProfile::open(profile_name)?;
     Ok(local_profile.delete_resource_pack(pack_name)?)
 }
 #[tauri::command(async)]
@@ -129,16 +130,28 @@ fn read_specific_local_profile(profile_name:&str)->Result<LocalProfile,String> {
 }
 #[tauri::command(async)]
 fn read_remote_resource_packs()->Result<Vec<ResourcePack>,InstallerError>{
-    Ok(PackManager::read_remote_packs()?)
+    Ok(AddonManager::read_remote_packs()?)
+}
+#[tauri::command(async)]
+fn read_remote_mods()->Result<Vec<Mod>,InstallerError>{
+    Ok(AddonManager::read_remote_mods()?)
+}
+#[tauri::command(async)]
+fn verify_profile_files(profile_name:&str)->Result<LocalProfile,InstallerError>{
+    let mut lp =  LocalProfile::open(profile_name)?;
+    lp.verify_profile_files()?;
+    Ok(lp)
 }
 #[tauri::command(async)]
 fn upload_local_profile(profile_name:&str)->Result<(),String>{
     let local_profile = LocalProfile::open(profile_name).unwrap();
-    Ok(local_profile.upload_profile()?)
+    local_profile.upload_profile()?;
+    Ok(())
 }
 #[tauri::command(async)]
-fn upload_additional_mods(profile_name:&str,mods_list:Vec<String>)->Result<(),String>{
+fn upload_additional_mods(profile_name:&str,mods_list:Vec<Mod>)->Result<(),String>{
     let local_profile = LocalProfile::open(profile_name)?;
+    dbg!(&mods_list);
     Ok(local_profile.upload_mods(mods_list)?)
 }
 
@@ -186,6 +199,8 @@ fn main() {
           read_specific_remote_profile,
           read_specific_local_profile,
           read_remote_resource_packs,
+          read_remote_mods,
+          verify_profile_files,
           delete_local_profile,
           copy_local_profile,
           copy_remote_profile,

@@ -13,9 +13,6 @@ pub struct PackManager{
 }
 
 impl PackManager{
-    pub fn new()->Self{
-        return Self{};
-    }
 
     pub fn read_remote_packs()->Result<Vec<ResourcePack>,InstallerError>{
         let sftp = InstallerConfig::open().unwrap().sftp_safe_connect().unwrap();
@@ -33,11 +30,11 @@ impl PackManager{
 #[derive(Serialize,Deserialize,Debug,Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ResourcePack{
-    name:String,
-    file_name:String,
-    location:PathBuf,
-    versions:Vec<String>,
-    dependencies:Vec<String>
+    pub name:String,
+    pub file_name:String,
+    pub location:PathBuf,
+    pub versions:Vec<String>,
+    pub dependencies:Vec<String>
 }
 
 impl ResourcePack{
@@ -89,7 +86,7 @@ impl ProfileAddon for ResourcePack{
         let remote_pack = PathBuf::from(SFTP_RESOURCE_PACKS_PATH).join(&rp.name).join("pack.json");
         match sftp.open(remote_pack.as_path()){
             Ok(file) => {
-                Ok(serde_json::from_reader(file).unwrap_or_else(|err| rp))
+                Ok(serde_json::from_reader(file).unwrap_or_else(|_| rp))
             }
             Err(_) => {
                 Ok(rp)
@@ -173,7 +170,7 @@ mod tests{
     fn test_upload_resource_pack(){
         let installer_config = InstallerConfig::open().unwrap();
         let source = PathBuf::from(installer_config.default_game_dir.unwrap().join("profiles").join("jman_modpack"));
-        let mut rp = ResourcePack::new("Sildur's Vibrant Shaders v1.52 Medium.zip");
+        let rp = ResourcePack::new("Sildur's Vibrant Shaders v1.52 Medium.zip");
         let result = rp.upload(&source);
         assert!(result.is_ok());
         sftp_list_dir(PathBuf::from(SFTP_RESOURCE_PACKS_PATH).join(&rp.name).as_path()).unwrap();
