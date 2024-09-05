@@ -11,19 +11,19 @@ const SFTP_PROFILES_DIR: &str = "/upload/profiles/";
 #[derive(Debug)]
 #[allow(dead_code)]
 pub enum GameProfile{
-    Local(LocalProfile),
-    Remote(RemoteProfile),
+    // Local(LocalProfile),
+    // Remote(RemoteProfile),
 }
-impl From<LocalProfile> for GameProfile{
-    fn from(value: LocalProfile) -> Self {
-        GameProfile::Local(value)
-    }
-}
-impl From<RemoteProfile> for GameProfile{
-    fn from(value: RemoteProfile) -> Self {
-        GameProfile::Remote(value)
-    }
-}
+// impl From<LocalProfile> for GameProfile{
+//     fn from(value: LocalProfile) -> Self {
+//         GameProfile::Local(value)
+//     }
+// }
+// impl From<RemoteProfile> for GameProfile{
+//     fn from(value: RemoteProfile) -> Self {
+//         GameProfile::Remote(value)
+//     }
+// }
 impl From<RemoteProfile> for LocalProfile{
     fn from(value: RemoteProfile) -> LocalProfile {
         Self{
