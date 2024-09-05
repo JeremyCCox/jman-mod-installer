@@ -58,12 +58,10 @@ impl RemoteProfile{
         Ok(())
     }
     pub fn read_profile_manifest<S:Into<String>>(name:S) ->Result<Self,InstallerError>{
-        println!("Looking for profile manifest");
         let name = name.into();
         let sftp = InstallerConfig::open()?.sftp_safe_connect()?;
         let file = sftp.open(PathBuf::from(SFTP_PROFILES_DIR).join(name).join("profile.json").as_path())?;
         let profile:RemoteProfile = serde_json::from_reader(file)?;
-        println!("Profile manifest found, returning profile");
         Ok(profile)
 
     }

@@ -126,9 +126,7 @@ impl InstallerConfig{
         let app_dir = tauri::api::path::data_dir().unwrap().join("jman-mod-installer");
         match File::open(app_dir.join("test-config.json")){
             Ok(file) => {
-                println!("{:?}",file);
                 let read_config:InstallerConfig = serde_json::from_reader(file).expect("Could not read from config.json");
-                println!("{:?}",read_config);
                 Ok(read_config)
             },
             Err(err) => {

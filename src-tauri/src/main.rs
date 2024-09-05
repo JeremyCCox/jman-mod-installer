@@ -124,7 +124,6 @@ fn list_remote_profiles()->Result<Vec<String>,String>{
 }
 #[tauri::command(async)]
 fn read_specific_remote_profile(profile_name:&str)->Result<RemoteProfile,String>{
-    println!("Heah");
     Ok(RemoteProfile::open(profile_name)?)
 }
 #[tauri::command(async)]
