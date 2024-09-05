@@ -3,7 +3,6 @@ use std::{fs, io};
 use std::io::{Write};
 use std::path::{Path, PathBuf};
 use ssh2::{Error, FileStat, Sftp};
-use crate::addons::{AddonType, ProfileAddon};
 use crate::installer::{InstallerConfig, InstallerError};
 use crate::launcher::{LauncherProfile, LauncherProfiles};
 use crate::mc_profiles::{create_mods_folder, create_profile,  list_profiles_mods};
@@ -105,9 +104,7 @@ pub fn sftp_read_remote_profiles()->Result<Vec<RemoteProfile>,InstallerError>{
         Ok(readout) => {
             for i in readout.iter(){
                 if i.1.is_dir(){
-                    let mut remote_profile = RemoteProfile::open(i.0.file_name().unwrap().to_str().unwrap())?;
-                    // remote_profile.mods = Some(sftp_list_mods(remote_profile.name.as_str())?);
-                    // remote_profile.launcher_profile = Some(sftp_read_launcher_profile(remote_profile.name.as_str())?);
+                    let remote_profile = RemoteProfile::open(i.0.file_name().unwrap().to_str().unwrap())?;
                     remote_profiles.push(remote_profile);
                 }
             }
@@ -322,7 +319,6 @@ pub fn sftp_create_profile_dirs(profile_name: &str) -> Result<(), InstallerError
 #[cfg(test)]
 mod tests {
     use serial_test::serial;
-    use crate::addons::AddonType;
     use crate::profiles::Profile;
     use super::*;
 

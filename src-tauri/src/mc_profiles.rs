@@ -1,12 +1,8 @@
 use std::{env, fs};
-use std::io::{Write};
 use std::path::{PathBuf};
 use std::process::Command;
-use serde::{Deserialize, Serialize};
 use crate::installer::{InstallerConfig,InstallerError};
 use crate::launcher::{LauncherProfile, LauncherProfiles};
-
-const SFTP_PROFILES_DIR: &str = "/upload/profiles/";
 
 pub fn list_profiles_mods(profile_path:&PathBuf) -> Result<Vec<PathBuf>,InstallerError> {
     let mods = fs::read_dir(profile_path.join("mods").as_path()).expect("Could not read dir!");

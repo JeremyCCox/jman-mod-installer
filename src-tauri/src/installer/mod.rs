@@ -1,18 +1,16 @@
 use std::fs::File;
 use std::{fs, io};
-use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::io::Write;
 use std::net::{TcpStream, ToSocketAddrs};
 use std::path::PathBuf;
-use std::str::FromStr;
 use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use ssh2::{Session, Sftp};
 use thiserror::Error;
 
 #[derive(Debug,Error)]
-struct ConfigError{
+pub struct ConfigError{
     code:usize,
     message:String,
 }
@@ -48,12 +46,12 @@ impl ConfigError{
     //         message: "no sftp_password found in config!".to_string(),
     //     }
     // }
-    fn no_addon_type()->Self{
-        Self{
-            code:5,
-            message: "no addon type!".to_string(),
-        }
-    }
+    // fn no_addon_type()->Self{
+    //     Self{
+    //         code:5,
+    //         message: "no addon type!".to_string(),
+    //     }
+    // }
 }
 #[derive(Debug,thiserror::Error)]
 pub enum InstallerError{
