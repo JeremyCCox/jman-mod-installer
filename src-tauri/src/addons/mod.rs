@@ -2,6 +2,7 @@ use std::{fs, io};
 use std::io::Write;
 use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
+use ssh2::{Sftp};
 use crate::installer::{InstallerConfig, InstallerError};
 const SFTP_MODS_PATH:&str = "/upload/mods";
 const SFTP_RESOURCE_PACKS_PATH: &str ="/upload/resource_packs";
@@ -127,13 +128,27 @@ impl ProfileAddon{
         let installer_config= InstallerConfig::open()?;
         let sftp = installer_config.sftp_safe_connect()?;
         let pack_dir= &self.addon_type.get_remote_dir().join(&self.name);
-        _ = sftp.mkdir(pack_dir.as_path(),1002);
-        println!("{:?}", source.join(&self.file_name));
-        let mut upload_file = fs::File::open(source.join(&self.file_name))?;
-        let mut remote_file = sftp.create(pack_dir.join(&self.file_name).as_path())?;
-        let mut file = sftp.create(pack_dir.join("pack.json").as_path())?;
+        match sftp.readdir(pack_dir){
+            Ok(_) => {
+                self.update_addon_pack(pack_dir,&sftp)?;
+            }
+            Err(_) => {
+                _ = sftp.mkdir(pack_dir.as_path(),1002);
+                self.upload_addon(source,&pack_dir,&sftp)?;
+                self.update_addon_pack(pack_dir,&sftp)?;
+            }
+        }
+        Ok(())
+    }
+    pub fn update_addon_pack(&self,dest :&PathBuf,sftp:&Sftp)->Result<(),InstallerError>{
+        let mut file = sftp.create(dest.join("pack.json").as_path())?;
         let self_json = serde_json::to_string_pretty(&self)?;
         file.write(self_json.as_ref())?;
+        Ok(())
+    }
+    pub fn upload_addon(&self,source:&PathBuf,dest:&PathBuf,sftp:&Sftp) ->Result<(),InstallerError>{
+        let mut upload_file = fs::File::open(source.join(&self.file_name))?;
+        let mut remote_file = sftp.create(dest.join(&self.file_name).as_path())?;
         io::copy(&mut upload_file, &mut remote_file)?;
         Ok(())
     }
