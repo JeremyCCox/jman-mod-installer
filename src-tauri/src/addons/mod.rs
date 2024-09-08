@@ -163,6 +163,12 @@ impl ProfileAddon{
         io::copy(&mut remote_file, &mut local_file)?;
         Ok(())
     }
+    pub fn update_remote(&self)->Result<(),InstallerError>{
+        let sftp = InstallerConfig::open().unwrap().sftp_safe_connect()?;
+        let pack_dir= &self.addon_type.get_remote_dir().join(&self.name);
+        self.update_addon_pack(pack_dir,&sftp)
+
+    }
 }
 
 #[cfg(test)]
@@ -171,7 +177,7 @@ mod tests{
     use std::path::PathBuf;
     use serial_test::serial;
     use crate::installer::InstallerConfig;
-    use crate::addons::{AddonType, ProfileAddon};
+    use crate::addons::{AddonManager, AddonType, ProfileAddon};
 
     #[test]
     fn test_new_mod(){

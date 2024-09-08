@@ -85,7 +85,7 @@ fn install_specified_mods(profile_name:&str,mods_list:Vec<&str>)->Result<(),Stri
 #[tauri::command(async)]
 fn install_resource_pack(profile_name:&str,pack_name:&str)->Result<(),String>{
     let mut local_profile = LocalProfile::open(profile_name)?;
-    Ok(local_profile.install_addon(pack_name,AddonType::ResourcePack)?)
+    Ok(local_profile.install_addons(Vec::from([pack_name]),AddonType::ResourcePack)?)
 }
 #[tauri::command(async)]
 fn remove_local_resource_pack(profile_name:&str,pack_name:&str)->Result<(),String>{
@@ -156,6 +156,11 @@ fn upload_additional_mods(profile_name:&str,mods_list:Vec<ProfileAddon>)->Result
     dbg!(&mods_list);
     Ok(local_profile.upload_specific_addons(mods_list,AddonType::Mod)?)
 }
+#[tauri::command(async)]
+fn update_profile_addon(addon:ProfileAddon,addon_type: AddonType)->Result<ProfileAddon,InstallerError>{
+    addon.update_remote()?;
+    Ok(addon)
+}
 
 #[tauri::command(async)]
 fn profile_location(profile_name:&str)->Result<(),String>{
@@ -203,6 +208,7 @@ fn main() {
           read_specific_local_profile,
           read_remote_resource_packs,
           read_remote_mods,
+          update_profile_addon,
           verify_profile_files,
           delete_local_profile,
           copy_local_profile,
