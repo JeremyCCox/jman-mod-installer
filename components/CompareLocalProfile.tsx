@@ -1,9 +1,9 @@
-import {LocalProfile, RemoteProfile} from "@my-types/";
-import {useQuery, useQueryClient} from "react-query";
+import {useQuery, useQueryClient, UseQueryResult} from "react-query";
 import {invoke} from "@tauri-apps/api";
 import ModDiscrepancies from "./ModDiscrepancies.tsx";
 import {Fragment, useState} from "react";
 import LoadingSpinner from "./LoadingSpinner.tsx";
+import {LocalProfile, ProfileAddon, RemoteProfile} from "../lib/types.ts";
 
 export default function CompareLocalProfile({profileName}:Readonly<{ profileName:string}>){
     const queryClient = useQueryClient();
@@ -45,11 +45,11 @@ export default function CompareLocalProfile({profileName}:Readonly<{ profileName
         })
 
     }
-    const compareProfileInfo = useQuery(["compare_profiles",profileName],async () => {
+    const compareProfileInfo:UseQueryResult<{missing:ProfileAddon[],extras:ProfileAddon[]}> = useQuery(["compare_profiles",profileName],async () => {
         let remote = await invoke<RemoteProfile>("read_specific_remote_profile", {profileName})
         let local = await invoke<LocalProfile>("read_specific_local_profile", {profileName})
-        let missing = remote.mods?.filter((remote) => !local.mods?.find(({name})=>name === remote.name))||[];
-        let extras = local.mods?.filter((local) => !remote.mods?.find(({name})=>name === local.name))||[];
+        let missing = remote.mods?.filter((remote) => !local.mods?.find(({name})=>name === remote.name));
+        let extras = local.mods?.filter((local) => !remote.mods?.find(({name})=>name === local.name));
         if(!local.mods){
             missing = remote.mods;
         }
@@ -68,7 +68,6 @@ export default function CompareLocalProfile({profileName}:Readonly<{ profileName
                 :
                 compareProfileInfo.data !== undefined?
                     <>
-
                         {
                             compareProfileInfo.data.extras.length === 0 && compareProfileInfo.data.missing.length === 0 &&
                             <h3 className={'font-bold text-center text-green-500'}>This profile is up to date!</h3>

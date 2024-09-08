@@ -2,9 +2,9 @@ import {createContext, ReactNode, useContext} from "react";
 import {useQuery, useQueryClient, UseQueryResult} from "react-query";
 import {invoke} from "@tauri-apps/api";
 import {Navigate} from "react-router-dom";
-import {InstallerProfile} from "../../lib/types.ts";
+import {ConfigQuery, InstallerProfile} from "../../lib/types.ts";
 
-const ConfigContext = createContext({});
+const ConfigContext = createContext({}as ConfigQuery);
 
 export function ConfigProvider({children}:Readonly<{ children?:ReactNode }>){
     const queryClient = useQueryClient();
@@ -12,6 +12,7 @@ export function ConfigProvider({children}:Readonly<{ children?:ReactNode }>){
         return invoke<boolean>("attempt_remote_connection_config").then((res)=>{
             return{success:res}
         }).catch(err=>{
+            console.error(err)
             return({success:false})
         });
     })
@@ -32,13 +33,13 @@ export function ConfigProvider({children}:Readonly<{ children?:ReactNode }>){
         await queryClient.refetchQueries("login")
 
     }
-    const updateConfig = async (config:InstallerProfile)=>{
-        await queryClient.invalidateQueries("login")
-        await invoke("write_installer_config",{installerConfig:config}).catch(err=>{
-            console.error(err)
-        })
-        await queryClient.refetchQueries("login")
-    }
+    // const updateConfig = async (config:InstallerProfile)=>{
+    //     await queryClient.invalidateQueries("login")
+    //     await invoke("write_installer_config",{installerConfig:config}).catch(err=>{
+    //         console.error(err)
+    //     })
+    //     await queryClient.refetchQueries("login")
+    // }
     const attemptLogin=async (config:InstallerProfile)=>{
         await queryClient.invalidateQueries("login")
         // console.log(config)
@@ -67,7 +68,7 @@ export function useConfig(){
     return useContext(ConfigContext)
 }
 export function ConfigValid({children}:Readonly<{children?:ReactNode}>){
-    const config = useConfig();
+    const config:ConfigQuery = useConfig();
     return(
         <>
             {config.accessQuery.isLoading?
