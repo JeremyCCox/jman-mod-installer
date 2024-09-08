@@ -1,8 +1,9 @@
 import {invoke} from "@tauri-apps/api";
 import {useSearchParams} from "react-router-dom";
 import {useQueryClient} from "react-query";
+import {ProfileAddon} from "../../../lib/types.ts";
 
-export default function ResourcePack({pack,installed}:Readonly<{pack:any,installed:boolean}>){
+export default function ResourcePack({pack,installed}:Readonly<{pack:ProfileAddon,installed:boolean}>){
     let [searchParams] = useSearchParams();
     const queryClient = useQueryClient();
     const installPack=async ()=>{
@@ -25,7 +26,7 @@ export default function ResourcePack({pack,installed}:Readonly<{pack:any,install
                 <button className={'max-w-[15%]'} onClick={deletePack}>Delete</button>
                 <div className={'top-full w-full absolute border-black border-2 bg-gray-300'}>
                     {pack.dependencies?.map(value => {
-                        return (<span>{value.name}</span>)
+                        return (<span>{value}</span>)
                     })}
                 </div>
             </div>

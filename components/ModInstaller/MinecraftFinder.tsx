@@ -3,7 +3,7 @@ import {dataDir, homeDir} from "@tauri-apps/api/path";
 import {readDir, exists, FileEntry} from "@tauri-apps/api/fs";
 import {invoke} from "@tauri-apps/api";
 import ProfileDisplay from "../profiles/ProfileDisplay.tsx";
-import ProfileLists from "../profiles/ProfileLists.tsx";
+import SideBar from "../profiles/SideBar.tsx";
 
 export default function MinecraftFinder({osType}:{osType:string}){
     // @ts-ignore
@@ -44,8 +44,8 @@ export default function MinecraftFinder({osType}:{osType:string}){
                         {/*Minecraft file found at {pathInfo.data.defaultPath}*/}
                         {pathInfo.data.defaultPath&&
                             <>
-                                <div className={'flex'}>
-                                    <ProfileLists/>
+                                <div className={'flex bg-blue-600 w-full grow h-full'}>
+                                    <SideBar/>
                                     <ProfileDisplay/>
                                 </div>
                                 {/*<ProfileInfo path={pathInfo.data.defaultPath}/>*/}
