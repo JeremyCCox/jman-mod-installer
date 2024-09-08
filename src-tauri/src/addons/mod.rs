@@ -47,7 +47,7 @@ impl AddonManager{
         let val = sftp.readdir(remote_path.as_path())?;
         for x in val {
             if x.1.is_dir(){
-                packs.push(ProfileAddon::open_remote(x.0.file_name().unwrap().to_str().unwrap(), AddonType::ResourcePack)?)
+                packs.push(ProfileAddon::open_remote(x.0.file_name().unwrap().to_str().unwrap(),addon_type)?)
             }
         }
         Ok(packs)
@@ -217,6 +217,14 @@ mod tests{
     //     let remote_paths = result.unwrap();
     //     dbg!(remote_paths);
     // }
+    #[test]
+    fn test_read_remote_addons(){
+        let result = AddonManager::read_remote_addon(AddonType::Mod);
+        assert!(result.is_ok());
+        let vec = result.unwrap();
+        dbg!(vec);
+
+    }
     #[test]
     fn test_upload_mod(){
         let installer_config = InstallerConfig::open().unwrap();
