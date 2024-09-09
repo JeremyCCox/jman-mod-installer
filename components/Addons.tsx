@@ -12,7 +12,7 @@ export default function Addons({addonType}:Readonly<{ addonType:string }>){
     const [newAddons, setNewAddons] = useState<ProfileAddon[]|undefined>()
     const queryClient = useQueryClient();
     let remoteResourcePacks:UseQueryResult<ProfileAddon[]> = useQuery(["remote-resource-packs"],async () => {
-        return await invoke("read_remote_resource_packs")
+        return await invoke("read_remote_addons",{addonType:addonType})
     })
     useEffect(()=>{
         if(remoteResourcePacks.data){
@@ -60,6 +60,10 @@ export default function Addons({addonType}:Readonly<{ addonType:string }>){
         mutation.mutate(addon);
         // await invoke("update_remote_addon",{addon,addonType:"ResourcePack"})
     }
+    const installNewAddons=async () => {
+        // console.log(newAddons)
+        await invoke("upload_profile_addons",{addons:newAddons})
+    }
     return(
         <div className={'flex flex-col'}>
             <div className={'flex flex-wrap relative'}>
@@ -71,6 +75,11 @@ export default function Addons({addonType}:Readonly<{ addonType:string }>){
                     <NewAddonRow addon={addon} newAddons={newAddons}  updateAddon={updateAddon}/>
                 )
             })}
+            {newAddons && newAddons.length > 0&&
+                <button onClick={installNewAddons}>
+                    Install new mods
+                </button>
+            }
             {remoteResourcePacks.isLoading?
                     <LoadingSpinner/>
                 :

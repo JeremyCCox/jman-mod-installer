@@ -15,6 +15,10 @@ export default function ProfileDisplay(){
             return(
               <Addons addonType={"ResourcePack"}/>
             )
+        case("mod"):
+            return(
+                <Addons addonType={"Mod"}/>
+            )
         case("profile"):
             if(profileInfo.profile){
                 return (
