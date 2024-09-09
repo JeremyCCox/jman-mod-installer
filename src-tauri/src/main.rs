@@ -77,6 +77,12 @@ fn install_new_mods(profile: &str,mod_list:Vec<ProfileAddon>)->Result<(),Install
     local_profile.install_new_addons(mod_list,AddonType::Mod)?;
     Ok(())
 }
+#[tauri::command]
+fn install_new_addons(profile: &str,addon_list:Vec<ProfileAddon>,addon_type: AddonType)->Result<(),InstallerError>{
+    let mut local_profile = LocalProfile::open(profile)?;
+    local_profile.install_new_addons(addon_list,addon_type)?;
+    Ok(())
+}
 #[tauri::command(async)]
 fn install_specified_mods(profile_name:&str,mods_list:Vec<&str>)->Result<(),String>{
     let mut local_profile = LocalProfile::open(profile_name).unwrap();
@@ -131,6 +137,11 @@ fn read_specific_local_profile(profile_name:&str)->Result<LocalProfile,String> {
     Ok(LocalProfile::open(profile_name)?)
 }
 #[tauri::command(async)]
+fn read_remote_addons(addon_type: AddonType)->Result<Vec<ProfileAddon>,InstallerError>{
+    Ok(AddonManager::read_remote_addon(addon_type)?)
+
+}
+#[tauri::command(async)]
 fn read_remote_resource_packs()->Result<Vec<ProfileAddon>,InstallerError>{
     Ok(AddonManager::read_remote_addon(AddonType::ResourcePack)?)
 }
@@ -157,11 +168,18 @@ fn upload_additional_mods(profile_name:&str,mods_list:Vec<ProfileAddon>)->Result
     Ok(local_profile.upload_specific_addons(mods_list,AddonType::Mod)?)
 }
 #[tauri::command(async)]
-fn update_profile_addon(addon:ProfileAddon,addon_type: AddonType)->Result<ProfileAddon,InstallerError>{
+fn update_profile_addon(addon:ProfileAddon)->Result<ProfileAddon,InstallerError>{
     addon.update_remote()?;
     Ok(addon)
 }
-
+#[tauri::command(async)]
+fn upload_profile_addons(addons:Vec<ProfileAddon>)->Result<(),InstallerError>{
+    for addon in addons {
+        dbg!(&addon);
+        addon.upload(&addon.location).unwrap()
+    }
+    Ok(())
+}
 #[tauri::command(async)]
 fn profile_location(profile_name:&str)->Result<(),String>{
     Ok(open_profile_location(profile_name)?)
@@ -194,6 +212,7 @@ fn main() {
           clear_installer_config,
           install_missing_mods,
           install_new_mods,
+          install_new_addons,
           install_specified_mods,
           install_resource_pack,
           remove_local_resource_pack,
@@ -208,7 +227,9 @@ fn main() {
           read_specific_local_profile,
           read_remote_resource_packs,
           read_remote_mods,
+          read_remote_addons,
           update_profile_addon,
+          upload_profile_addons,
           verify_profile_files,
           delete_local_profile,
           copy_local_profile,

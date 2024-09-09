@@ -156,13 +156,16 @@ impl ProfileAddon{
         Ok(())
     }
     pub fn upload_addon(&self,source:&PathBuf,dest:&PathBuf,sftp:&Sftp) ->Result<(),InstallerError>{
-        let mut upload_file = fs::File::open(source.join(&self.file_name))?;
+        dbg!(&source);
+        dbg!(&dest);
+        let mut upload_file = fs::File::open(source)?;
         let mut remote_file = sftp.create(dest.join(&self.file_name).as_path())?;
         io::copy(&mut upload_file, &mut remote_file)?;
         Ok(())
     }
 
     pub fn download(&self, location: &PathBuf) -> Result<(), InstallerError> {
+        println!("ran here");
         let installer_config= InstallerConfig::open()?;
         let sftp = installer_config.sftp_safe_connect()?;
         let remote_dir= self.addon_type.get_remote_dir().join(&self.name);
@@ -259,6 +262,14 @@ mod tests{
     }
     #[test]
     fn test_download_mod(){
+        let installer_config = InstallerConfig::open().unwrap();
+        let profile_path = PathBuf::from(installer_config.default_game_dir.unwrap().join("profiles").join("new_profile"));
+        let rp = ProfileAddon::new("optifine.jar",AddonType::Mod);
+        let result = rp.download(&profile_path);
+        assert!(result.is_ok());
+    }
+    #[test]
+    fn test_install_addon(){
         let installer_config = InstallerConfig::open().unwrap();
         let profile_path = PathBuf::from(installer_config.default_game_dir.unwrap().join("profiles").join("new_profile"));
         let rp = ProfileAddon::new("optifine.jar",AddonType::Mod);
