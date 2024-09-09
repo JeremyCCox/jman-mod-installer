@@ -134,10 +134,12 @@ impl LocalProfile{
     pub fn delete_addon(&mut self,addon_name:&str,addon_type: AddonType)->Result<(),InstallerError>{
         let addon_dir = addon_type.get_local_dir(&self.name)?;
         let readout =fs::read_dir(&addon_dir)?;
+        dbg!(&addon_dir);
         let mut addons = self.get_type_addons(addon_type)?;
         for addon in readout{
             match addon{
                 Ok(entry) => {
+                    dbg!(&entry);
                     if entry.file_name().to_str().unwrap().contains(addon_name){
                         dbg!(&entry.file_type());
                         match entry.file_type().unwrap().is_dir() {
@@ -152,7 +154,9 @@ impl LocalProfile{
                         addons.remove(index);
                     }
                 }
-                Err(_) => {}
+                Err(_) => {
+                    println!("error!")
+                }
             }
         }
         self.set_type_addons(addons,addon_type)?;
