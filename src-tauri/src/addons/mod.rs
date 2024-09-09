@@ -134,8 +134,17 @@ impl ProfileAddon{
             }
             Err(_) => {
                 _ = sftp.mkdir(pack_dir.as_path(),1002);
-                self.upload_addon(source,&pack_dir,&sftp)?;
-                self.update_addon_pack(pack_dir,&sftp)?;
+                match &self.file_name.as_str().eq(source.file_name().unwrap().to_str().unwrap()){
+                    true => {
+                        self.upload_addon(source,&pack_dir,&sftp)?;
+                        self.update_addon_pack(pack_dir,&sftp)?;
+                    },
+                    false=>{
+                        self.upload_addon(&source.join(&self.file_name),&pack_dir,&sftp)?;
+                        self.update_addon_pack(pack_dir,&sftp)?;
+                    }
+                }
+
             }
         }
         Ok(())
@@ -233,6 +242,18 @@ mod tests{
         let rp = ProfileAddon::new("optifine.jar",AddonType::Mod);
         dbg!(&rp);
         let result = rp.upload(&source);
+        dbg!(&result);
+        assert!(result.is_ok());
+    }
+    #[test]
+    fn test_upload_new_resourcepack(){
+        let installer_config = InstallerConfig::open().unwrap();
+        let source = PathBuf::from(installer_config.default_game_dir.unwrap().join("profiles").join("new_profile"));
+        File::create(source.join("mods").join("optifine.jar")).expect("Could not create mod");
+        let mut rp = ProfileAddon::new("colorful containers",AddonType::ResourcePack);
+        rp.location = "C:\\Users\\Jeremy\\Downloads\\colourful containers.zip".parse().unwrap();
+        rp.file_name= "colourful containers.zip".parse().unwrap();
+        let result = rp.upload(&rp.location);
         dbg!(&result);
         assert!(result.is_ok());
     }
