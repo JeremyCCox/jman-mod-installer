@@ -2,6 +2,7 @@ use std::{fs, io};
 use std::io::Write;
 use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
+use ssh2::{Sftp};
 use crate::installer::{InstallerConfig, InstallerError};
 const SFTP_MODS_PATH:&str = "/upload/mods";
 const SFTP_RESOURCE_PACKS_PATH: &str ="/upload/resource_packs";
@@ -46,7 +47,7 @@ impl AddonManager{
         let val = sftp.readdir(remote_path.as_path())?;
         for x in val {
             if x.1.is_dir(){
-                packs.push(ProfileAddon::open_remote(x.0.file_name().unwrap().to_str().unwrap(), AddonType::ResourcePack)?)
+                packs.push(ProfileAddon::open_remote(x.0.file_name().unwrap().to_str().unwrap(),addon_type)?)
             }
         }
         Ok(packs)
@@ -115,7 +116,7 @@ impl ProfileAddon{
         let remote_pack = addon_type.get_remote_dir().join(&rp.name).join("pack.json");
         match sftp.open(remote_pack.as_path()){
             Ok(file) => {
-                Ok(serde_json::from_reader(file).unwrap_or_else(|err| rp))
+                Ok(serde_json::from_reader(file).unwrap_or_else(|_| rp))
             }
             Err(_) => {
                 Ok(rp)
@@ -127,13 +128,27 @@ impl ProfileAddon{
         let installer_config= InstallerConfig::open()?;
         let sftp = installer_config.sftp_safe_connect()?;
         let pack_dir= &self.addon_type.get_remote_dir().join(&self.name);
-        _ = sftp.mkdir(pack_dir.as_path(),1002);
-        println!("{:?}", source.join(&self.file_name));
-        let mut upload_file = fs::File::open(source.join(&self.file_name))?;
-        let mut remote_file = sftp.create(pack_dir.join(&self.file_name).as_path())?;
-        let mut file = sftp.create(pack_dir.join("pack.json").as_path())?;
+        match sftp.readdir(pack_dir){
+            Ok(_) => {
+                self.update_addon_pack(pack_dir,&sftp)?;
+            }
+            Err(_) => {
+                _ = sftp.mkdir(pack_dir.as_path(),1002);
+                self.upload_addon(source,&pack_dir,&sftp)?;
+                self.update_addon_pack(pack_dir,&sftp)?;
+            }
+        }
+        Ok(())
+    }
+    pub fn update_addon_pack(&self,dest :&PathBuf,sftp:&Sftp)->Result<(),InstallerError>{
+        let mut file = sftp.create(dest.join("pack.json").as_path())?;
         let self_json = serde_json::to_string_pretty(&self)?;
         file.write(self_json.as_ref())?;
+        Ok(())
+    }
+    pub fn upload_addon(&self,source:&PathBuf,dest:&PathBuf,sftp:&Sftp) ->Result<(),InstallerError>{
+        let mut upload_file = fs::File::open(source.join(&self.file_name))?;
+        let mut remote_file = sftp.create(dest.join(&self.file_name).as_path())?;
         io::copy(&mut upload_file, &mut remote_file)?;
         Ok(())
     }
@@ -148,6 +163,12 @@ impl ProfileAddon{
         io::copy(&mut remote_file, &mut local_file)?;
         Ok(())
     }
+    pub fn update_remote(&self)->Result<(),InstallerError>{
+        let sftp = InstallerConfig::open().unwrap().sftp_safe_connect()?;
+        let pack_dir= &self.addon_type.get_remote_dir().join(&self.name);
+        self.update_addon_pack(pack_dir,&sftp)
+
+    }
 }
 
 #[cfg(test)]
@@ -156,8 +177,7 @@ mod tests{
     use std::path::PathBuf;
     use serial_test::serial;
     use crate::installer::InstallerConfig;
-    use crate::addons::{AddonType, ProfileAddon, SFTP_MODS_PATH};
-    use crate::sftp::sftp_list_dir;
+    use crate::addons::{AddonManager, AddonType, ProfileAddon};
 
     #[test]
     fn test_new_mod(){
@@ -198,11 +218,19 @@ mod tests{
     //     dbg!(remote_paths);
     // }
     #[test]
+    fn test_read_remote_addons(){
+        let result = AddonManager::read_remote_addon(AddonType::Mod);
+        assert!(result.is_ok());
+        let vec = result.unwrap();
+        dbg!(vec);
+
+    }
+    #[test]
     fn test_upload_mod(){
         let installer_config = InstallerConfig::open().unwrap();
         let source = PathBuf::from(installer_config.default_game_dir.unwrap().join("profiles").join("new_profile"));
         File::create(source.join("mods").join("optifine.jar")).expect("Could not create mod");
-        let mut rp = ProfileAddon::new("optifine.jar",AddonType::Mod);
+        let rp = ProfileAddon::new("optifine.jar",AddonType::Mod);
         dbg!(&rp);
         let result = rp.upload(&source);
         dbg!(&result);
@@ -212,7 +240,7 @@ mod tests{
     fn test_download_mod(){
         let installer_config = InstallerConfig::open().unwrap();
         let profile_path = PathBuf::from(installer_config.default_game_dir.unwrap().join("profiles").join("new_profile"));
-        let mut rp = ProfileAddon::new("optifine.jar",AddonType::Mod);
+        let rp = ProfileAddon::new("optifine.jar",AddonType::Mod);
         let result = rp.download(&profile_path);
         assert!(result.is_ok());
 

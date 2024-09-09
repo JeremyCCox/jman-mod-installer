@@ -1,4 +1,3 @@
-import React, {useEffect} from "react";
 import {useQuery, UseQueryResult} from "react-query";
 import {invoke} from "@tauri-apps/api";
 import ResourcePack from "./ResourcePack.tsx";

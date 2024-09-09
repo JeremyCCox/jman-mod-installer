@@ -1,7 +1,5 @@
-use std::path::PathBuf;
 use crate::addons::{AddonType, ProfileAddon};
 use crate::installer::InstallerError;
-use crate::launcher::LauncherProfiles;
 use crate::profiles::local_profile::LocalProfile;
 use crate::profiles::remote_profile::RemoteProfile;
 
@@ -10,21 +8,22 @@ pub mod remote_profile;
 
 const SFTP_PROFILES_DIR: &str = "/upload/profiles/";
 
-
+#[derive(Debug)]
+#[allow(dead_code)]
 pub enum GameProfile{
-    Local(LocalProfile),
-    Remote(RemoteProfile),
+    // Local(LocalProfile),
+    // Remote(RemoteProfile),
 }
-impl From<LocalProfile> for GameProfile{
-    fn from(value: LocalProfile) -> Self {
-        GameProfile::Local(value)
-    }
-}
-impl From<RemoteProfile> for GameProfile{
-    fn from(value: RemoteProfile) -> Self {
-        GameProfile::Remote(value)
-    }
-}
+// impl From<LocalProfile> for GameProfile{
+//     fn from(value: LocalProfile) -> Self {
+//         GameProfile::Local(value)
+//     }
+// }
+// impl From<RemoteProfile> for GameProfile{
+//     fn from(value: RemoteProfile) -> Self {
+//         GameProfile::Remote(value)
+//     }
+// }
 impl From<RemoteProfile> for LocalProfile{
     fn from(value: RemoteProfile) -> LocalProfile {
         Self{

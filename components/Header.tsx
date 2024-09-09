@@ -1,4 +1,4 @@
-import {Outlet, useLocation, useNavigate} from "react-router-dom";
+import { useLocation, useNavigate} from "react-router-dom";
 import {useConfig} from "./contextHooks/configContext.tsx";
 
 export default function Header(){
@@ -7,14 +7,14 @@ export default function Header(){
     const config = useConfig();
     return(
         <>
-            <header className={'w-full relative'}>
-                <div className={'absolute top-0 left-0 float-left'}>
+            <header className={''}>
+                <div className={'float-left'}>
                     <button type={'button'} onClick={()=>{navigate("")}} disabled={location.pathname === "/"}>
                         Home
                     </button>
                 </div>
-                <h1>JMAN Mod Loader</h1>
-                <div className={'absolute flex top-0 right-0 float-right'}>
+                <h1 className={'absolute text-center w-full'}>JMAN Mod Loader</h1>
+                <div className={'absolute flex top-0 right-0'}>
                     <button type={'button'} onClick={()=>{config.logout()}} disabled={location.pathname === "/settings"}>
                         Logout
                     </button>
@@ -23,7 +23,6 @@ export default function Header(){
                     </button>
                 </div>
             </header>
-            <Outlet/>
         </>
     )
 }

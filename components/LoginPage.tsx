@@ -1,6 +1,6 @@
 import {useConfig} from "./contextHooks/configContext.tsx";
 import {FormEvent, useState} from "react";
-import {InstallerProfile} from "@my-types/*";
+import {InstallerProfile} from "../lib/types.ts";
 import LoadingSpinner from "./LoadingSpinner.tsx";
 import UserLogin from "./UserLogin.tsx";
 import {useNavigate} from "react-router-dom";

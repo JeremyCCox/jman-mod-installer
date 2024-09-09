@@ -6,9 +6,9 @@ import {FormEvent, useState} from "react";
 export default function Settings(){
     const config = useConfig();
     const [loading, setLoading] = useState(false);
-    const [username, setUsername] = useState(config?.configQuery.data.sftpUsername||"")
-    const [server, setServer] = useState(config?.configQuery.data.sftpServer||"")
-    const [port, setPort] = useState(config?.configQuery.data.sftpPort||"")
+    const [username, setUsername] = useState(config?.configQuery.data?.sftpUsername||"")
+    const [server, setServer] = useState(config?.configQuery.data?.sftpServer||"")
+    const [port, setPort] = useState(config?.configQuery.data?.sftpPort||"")
 
     const handleSubmit = async (e: FormEvent<HTMLFormElement>)=>{
         console.log(e)

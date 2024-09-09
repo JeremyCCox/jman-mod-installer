@@ -3,9 +3,9 @@ import {useState} from "react";
 import {useQuery} from "react-query";
 import {invoke} from "@tauri-apps/api";
 
-export default function NewModRow({mod,newMods,profileMods,updateMod}:Readonly<{mod:ProfileAddon,newMods:ProfileAddon[],profileMods:ProfileAddon[],updateMod:(mod:ProfileAddon)=>void}>){
-    const cleanNewMods = newMods.filter(({name})=>name !== mod.name)
-    const cleanProfileMods = profileMods.filter(({name})=>name !== mod.name)
+export default function NewAddonRow({addon,newAddons,profileAddons,updateAddon}:Readonly<{addon:ProfileAddon,newAddons?:ProfileAddon[],profileAddons?:ProfileAddon[],updateAddon:(mod:ProfileAddon)=>void}>){
+    const cleanNewMods = newAddons?.filter(({name})=>name !== addon.name)||[]
+    const cleanProfileMods = profileAddons?.filter(({name})=>name !== addon.name)||[]
     const [toggleDep, setToggleDep] = useState(false);
     const allModsQuery=useQuery(["allMods"],async () => {
         return await invoke<ProfileAddon[]>("read_remote_mods")
@@ -17,23 +17,23 @@ export default function NewModRow({mod,newMods,profileMods,updateMod}:Readonly<{
         let masterList = cleanNewMods;
         masterList.push(...cleanProfileMods)
         if(allModsQuery.data){
-            let cleanMods = allModsQuery.data.filter(({name})=>name !== mod.name);
+            let cleanMods = allModsQuery.data.filter(({name})=>name !== addon.name);
             masterList.push(...cleanMods)
         }
         let newMod = masterList[e.currentTarget['newDep'].selectedIndex-1];
-        if(!mod.dependencies.find(({name})=>name === newMod.name) &&!(mod.name === newMod.name)){
-            mod.dependencies.push(newMod);
-            updateMod(mod);
+        if(!addon.dependencies.find((name)=>name === newMod.name) &&!(addon.name === newMod.name)){
+            addon.dependencies.push(newMod.name);
+            updateAddon(addon);
         }
     }
 
     return(
         <tr className={'border-2 border-black'}>
-            <td>{mod.name}</td>
-            <td>{mod.fileName}</td>
+            <td>{addon.name}</td>
+            <td>{addon.fileName}</td>
             <td className={'grid relative'}>
-                {mod.dependencies.map(dep=>{
-                    return (<span>{dep.name}</span>)
+                {addon.dependencies.map(dep=>{
+                    return (<span>{dep}</span>)
                 })}
                 <button type={'button'} onClick={()=>{setToggleDep(!toggleDep)}}>{toggleDep?"Close Dependencies":"Add Dependency"}</button>
                 {
@@ -63,7 +63,7 @@ export default function NewModRow({mod,newMods,profileMods,updateMod}:Readonly<{
                             </optgroup>
                             <optgroup label={'ALL mods'} >
                                 {allModsQuery.data?.map(aMod=>{
-                                    if(aMod.name !== mod.name){
+                                    if(aMod.name !== addon.name){
                                         return(
                                             <option  key={`aModOption-${aMod.fileName}`} value={aMod.name}>
                                                 {aMod.name}

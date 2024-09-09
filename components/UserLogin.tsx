@@ -1,5 +1,5 @@
 import GameDir from "./GameDir";
-import {InstallerProfile} from "@my-types/*";
+import {InstallerProfile} from "../lib/types.ts";
 import {useState} from "react";
 import LoadingSpinner from "./LoadingSpinner.tsx";
 

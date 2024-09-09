@@ -36,6 +36,7 @@ export default function LocalProfile({profileName}:Readonly<{ profileName: strin
             console.log(res)
             // setMessage(res)
         }).catch(err=>{
+            console.error(err)
         }).finally(()=>{
             setLoading(false)
         });
@@ -46,7 +47,7 @@ export default function LocalProfile({profileName}:Readonly<{ profileName: strin
         await invoke('upload_local_profile', {profileName: e.currentTarget.name}).then((res:string)=>{
             queryClient.invalidateQueries("profiles")
         }).catch(err=>{
-
+            console.error(err)
         }).finally(()=>{
             queryClient.refetchQueries("profiles")
             setLoading(false)
@@ -59,6 +60,7 @@ export default function LocalProfile({profileName}:Readonly<{ profileName: strin
         invoke(`delete_local_profile`,{profileName:e.currentTarget.name}).then((res:string)=>{
             queryClient.invalidateQueries("profiles")
         }).catch(err=>{
+            console.error(err)
         }).finally(()=>{
             setTimeout(()=>{
                 queryClient.refetchQueries("profiles")
@@ -98,20 +100,20 @@ export default function LocalProfile({profileName}:Readonly<{ profileName: strin
                     Refresh
                 </button>
             </div>
-                <CompareLocalProfile profileName={profileName}/>
-                <div className={'border w-full border-black m-2'}>
-                    {localProfile.data&&
-                        <div className={''}>
-                            {localProfile.isLoading&&
-                                <div className={'text-center'}>
-                                    <LoadingSpinner/>
-                                </div>
-                            }
-                            <ProfileMods mods={localProfile.data?.mods}/>
-                            <ProfileResourcePacks resourcePacks={localProfile.data?.resourcePacks}/>
-                        </div>
-                    }
-                </div>
+            <CompareLocalProfile profileName={profileName}/>
+            <div className={'border border-black m-2'}>
+                {localProfile.data&&
+                    <div className={''}>
+                        {localProfile.isLoading&&
+                            <div className={'text-center'}>
+                                <LoadingSpinner/>
+                            </div>
+                        }
+                        <ProfileMods mods={localProfile.data?.mods}/>
+                        <ProfileResourcePacks resourcePacks={localProfile.data?.resourcePacks}/>
+                    </div>
+                }
+            </div>
 
         </>
     )

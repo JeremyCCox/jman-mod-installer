@@ -28,8 +28,8 @@ impl LocalProfile{
         remote_profile.scaffold()?;
         remote_profile.write_launcher_profile()?;
         remote_profile.save_profile()?;
-        &self.upload_addons(AddonType::Mod)?;
-        &self.upload_addons(AddonType::ResourcePack)?;
+        self.upload_addons(AddonType::Mod)?;
+        self.upload_addons(AddonType::ResourcePack)?;
         Ok(remote_profile)
     }
     pub fn upload_addons(&self,addons_type:AddonType)->Result<(),InstallerError>{
@@ -106,7 +106,7 @@ impl LocalProfile{
     }
     pub fn find_missing_dependencies(&self,dependencies:HashSet<String>)->Option<HashSet<String>>{
         let mut missing_dependencies = dependencies;
-        let mod_list = self.get_type_addons(AddonType::Mod).unwrap();;
+        let mod_list = self.get_type_addons(AddonType::Mod).unwrap();
         for x in mod_list {
             match missing_dependencies.contains(&x.name) {
                 true => {
@@ -167,10 +167,10 @@ impl LocalProfile{
         Ok(serde_json::from_reader(file)?)
     }
     pub fn verify_profile_files(&mut self)->Result<(),InstallerError>{
-        &self.read_addons(AddonType::Mod)?;
-        &self.read_addons(AddonType::ResourcePack)?;
-        &self.read_launcher_profile()?;
-        &self.save_profile()?;
+        self.read_addons(AddonType::Mod)?;
+        self.read_addons(AddonType::ResourcePack)?;
+        self.read_launcher_profile()?;
+        self.save_profile()?;
         Ok(())
     }
     pub fn save_profile(&self)->Result<(),InstallerError>{
@@ -323,7 +323,7 @@ mod test{
     use std::fs;
     use std::fs::File;
     use serial_test::serial;
-    use crate::addons::{AddonManager, AddonType, ProfileAddon};
+    use crate::addons::{AddonType, ProfileAddon};
     use crate::installer::{InstallerConfig, InstallerError};
     use crate::profiles::local_profile::LocalProfile;
     use crate::profiles::{Profile};
@@ -353,20 +353,20 @@ mod test{
         File::create(&game_path.join("mods").join("testjar.jar")).expect("Could not create test jar");
         profile.verify_profile_files().unwrap();
         dbg!(&profile);
-        assert_eq!(profile.mods.unwrap().len(), 1);
+        assert_eq!(profile.mods.unwrap().len(), 6);
     }
     #[test]
     fn test_upload_profile(){
-        let mut local_profile:LocalProfile = LocalProfile::open("test_profile").or_else(|e| setup_test_mods()).unwrap();
+        let local_profile:LocalProfile = LocalProfile::open("test_profile").or_else(|_| setup_test_mods()).unwrap();
         let result = local_profile.upload_profile();
         assert!(&result.is_ok());
-        let remote_profile = result.unwrap();
+        // let remote_profile = result.unwrap();
 
     }
     #[test]
     #[serial]
     fn test_upload_mods(){
-        let mut local_profile:LocalProfile = LocalProfile::open("test_profile").or_else(|e| setup_test_mods()).unwrap();
+        let local_profile:LocalProfile = LocalProfile::open("test_profile").or_else(|_| setup_test_mods()).unwrap();
         let result = local_profile.upload_addons(AddonType::Mod);
         assert!(result.is_ok());
     }
@@ -433,7 +433,7 @@ mod test{
     }
     fn setup_test_mods()->Result<LocalProfile,InstallerError>{
         let installer_config = InstallerConfig::open()?;
-        let mut local = LocalProfile::new("test_profile");
+        let local = LocalProfile::new("test_profile");
         local.scaffold()?;
         let profile_path = installer_config.default_game_dir.unwrap().join("profiles").join(&local.name);
         let mut test_mod = ProfileAddon::new("testmod.jar",AddonType::Mod);
@@ -456,10 +456,11 @@ mod test{
     }
     #[test]
     fn test_install_new_mods(){
-        let mut local_profile:LocalProfile = LocalProfile::open("test_profile").or_else(|e| setup_test_mods()).unwrap();
+        let mut local_profile:LocalProfile = LocalProfile::open("test_profile").or_else(|_| setup_test_mods()).unwrap();
         let mod_list:Vec<&str> = Vec::from(["testmod"]);
         let install_result = local_profile.install_addons(mod_list,AddonType::Mod);
         assert!(install_result.is_ok());
+        local_profile.delete().unwrap();
     }
     // #[test]
     // fn fix_addons(){

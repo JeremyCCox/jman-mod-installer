@@ -1,3 +1,5 @@
+import {UseQueryResult} from "react-query";
+
 export interface LauncherProfile{
     created?:string,
     game_dir?:string,
@@ -30,6 +32,12 @@ export interface ProfileAddon{
     fileName:string,
     location:string,
     versions:string[],
-    dependencies:ProfileAddon[];
+    dependencies:string[];
     addonType:string,
+}
+export interface ConfigQuery{
+    accessQuery:UseQueryResult<{success:boolean}>,
+    configQuery:UseQueryResult<InstallerProfile>,
+    attemptLogin:(config:InstallerProfile)=>Promise<unknown>,
+    logout:()=>void,
 }

@@ -4,8 +4,8 @@ import InstallerBase from "../components/ModInstaller/InstallerBase.tsx";
 import {BrowserRouter, Route, Routes} from "react-router-dom";
 import {ConfigProvider, ConfigValid} from "../components/contextHooks/configContext.tsx";
 import LoginPage from "../components/LoginPage.tsx";
-import Header from "../components/Header.tsx";
 import Settings from "../components/Settings.tsx";
+import Layout from "../components/Layout.tsx";
 
 export default function App(){
     const queryClient = new QueryClient({defaultOptions:{
@@ -21,9 +21,7 @@ export default function App(){
                         <Routes>
                             <Route path={'/*'} element={
                                 <ConfigValid>
-                                    <Header>
-
-                                    </Header>
+                                    <Layout/>
                                 </ConfigValid>
                             }>
                                 <Route path={""} element={

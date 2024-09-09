@@ -2,12 +2,12 @@ import  {useState} from "react";
 import {ProfileAddon} from "../../../lib/types.ts";
 import LoadingSpinner from "../../LoadingSpinner.tsx";
 import FileInput from "../../inputs/FileInput.tsx";
-import NewModRow from "../../ModInstaller/NewModRow.tsx";
+import NewAddonRow from "../../ModInstaller/NewAddonRow.tsx";
 import {invoke} from "@tauri-apps/api";
 import {useSearchParams} from "react-router-dom";
 import {useQueryClient} from "react-query";
 
-class FilePath{
+export class FilePath{
     path:string;
     constructor(filepath:string) {
         this.path = filepath;
@@ -28,7 +28,7 @@ class FilePath{
 export default function ProfileMods({mods}:Readonly<{ mods?:ProfileAddon[] }>){
 
 
-        const [newMods, setNewMods] = useState<ProfileAddon[]|undefined>(undefined)
+    const [newMods, setNewMods] = useState<ProfileAddon[]|undefined>(undefined)
     const [URLSearchParams] = useSearchParams()
     const queryClient = useQueryClient();
     const fileHandler=(files:string[])=>{
@@ -37,11 +37,12 @@ export default function ProfileMods({mods}:Readonly<{ mods?:ProfileAddon[] }>){
             let filePath = new FilePath(file)
             let {name,fileName} = filePath.getFileInfo();
            mods.push({
-                dependencies: [],
-                fileName,
-                location: filePath.path,
-                name,
-                versions: []
+               addonType:"Mod",
+               dependencies: [],
+               fileName,
+               location: filePath.path,
+               name,
+               versions: []
             })
         }
         setNewMods(mods)
@@ -56,14 +57,14 @@ export default function ProfileMods({mods}:Readonly<{ mods?:ProfileAddon[] }>){
         }
         let testList = []
         for (let mod of newMods){
-            let depNames = mod.dependencies.map(dep=> {
-                return (dep.name)
-            });
+            // let depNames = mod.dependencies.map(dep=> {
+            //     return (dep.name)
+            // });
             testList.push({
                 addonType:"Mod",
                 name:mod.name,
                 fileName:mod.fileName,
-                dependencies:depNames,
+                dependencies:mod.dependencies,
                 location:mod.location,
                 versions:mod.versions,
             })
@@ -101,7 +102,7 @@ export default function ProfileMods({mods}:Readonly<{ mods?:ProfileAddon[] }>){
                         <tbody>
                         {newMods.map(mod=>{
                             return (
-                                <NewModRow key={`modrow-${mod.fileName}`} mod={mod} newMods={newMods} profileMods={mods} updateMod={updateMod}/>
+                                <NewAddonRow key={`modrow-${mod.fileName}`} addon={mod} newAddons={newMods} profileAddons={mods} updateAddon={updateMod}/>
                             )
                         })}
                         </tbody>

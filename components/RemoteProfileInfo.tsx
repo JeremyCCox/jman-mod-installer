@@ -1,9 +1,9 @@
 import React, {useState} from "react";
 import {useQuery, useQueryClient, UseQueryResult} from "react-query";
-import {RemoteProfile} from "@my-types/"
 import CompareLocalProfile from "./CompareLocalProfile.tsx";
 import {invoke} from "@tauri-apps/api";
 import LoadingSpinner from "./LoadingSpinner.tsx";
+import {RemoteProfile} from "../lib/types.ts";
 
 export default function RemoteProfileInfo({profileName}:Readonly<{profileName:string}>){
     const [ loading,setLoading] = useState(false)
@@ -18,7 +18,8 @@ export default function RemoteProfileInfo({profileName}:Readonly<{profileName:st
             queryClient.invalidateQueries("profiles")
             queryClient.invalidateQueries(["list_local_profiles"])
             queryClient.invalidateQueries(["list_remote_profiles"])
-        }).catch((err:string)=>{
+        }).catch((err)=>{
+            console.error(err)
         }).finally(()=>{
 
             queryClient.refetchQueries(["list_remote_profiles"])
@@ -47,6 +48,7 @@ export default function RemoteProfileInfo({profileName}:Readonly<{profileName:st
             console.log(res)
             // setMessage(res)
         }).catch(err=>{
+            console.error(err)
         }).finally(()=>{
             setLoading(false)
         });
