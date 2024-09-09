@@ -58,7 +58,7 @@ impl LocalProfile{
         for a in addon_list.iter(){
             let current_mod = ProfileAddon::open_remote(a,addon_type)?;
             dependencies.extend(current_mod.dependencies.clone());
-            current_mod.download(&local_path)?;
+            current_mod.download(&addon_type.get_local_dir(&self.name).unwrap())?;
             addons.push(current_mod);
         }
         self.set_type_addons(addons,addon_type)?;
@@ -133,8 +133,9 @@ impl LocalProfile{
 
     pub fn delete_addon(&mut self,addon_name:&str,addon_type: AddonType)->Result<(),InstallerError>{
         let addon_dir = addon_type.get_local_dir(&self.name)?;
-        let readout =fs::read_dir(&addon_dir)?;
         dbg!(&addon_dir);
+        let readout =fs::read_dir(&addon_dir)?;
+        dbg!(&readout);
         let mut addons = self.get_type_addons(addon_type)?;
         for addon in readout{
             match addon{

@@ -165,7 +165,6 @@ impl ProfileAddon{
     }
 
     pub fn download(&self, location: &PathBuf) -> Result<(), InstallerError> {
-        println!("ran here");
         let installer_config= InstallerConfig::open()?;
         let sftp = installer_config.sftp_safe_connect()?;
         let remote_dir= self.addon_type.get_remote_dir().join(&self.name);
@@ -263,17 +262,15 @@ mod tests{
     #[test]
     fn test_download_mod(){
         let installer_config = InstallerConfig::open().unwrap();
-        let profile_path = PathBuf::from(installer_config.default_game_dir.unwrap().join("profiles").join("new_profile"));
         let rp = ProfileAddon::new("optifine.jar",AddonType::Mod);
-        let result = rp.download(&profile_path);
+        let result = rp.download(&rp.addon_type.get_local_dir("new_profile").unwrap());
         assert!(result.is_ok());
     }
     #[test]
     fn test_install_addon(){
         let installer_config = InstallerConfig::open().unwrap();
-        let profile_path = PathBuf::from(installer_config.default_game_dir.unwrap().join("profiles").join("new_profile"));
         let rp = ProfileAddon::new("optifine.jar",AddonType::Mod);
-        let result = rp.download(&profile_path);
+        let result = rp.download(&rp.addon_type.get_local_dir("new_profile").unwrap());
         assert!(result.is_ok());
 
     }
