@@ -73,6 +73,27 @@ impl AddonManager{
         let manifest = File::open(addon_type.get_addon_manifest())?;
         Ok(serde_json::from_reader(manifest)?)
     }
+    pub fn insert_addons_into_manifest(addon_list:Vec<ProfileAddon>, addon_type:AddonType) ->Result<(),InstallerError>{
+        let mut unique_list:Vec<ProfileAddon> = Vec::new();
+        let manifest_list = AddonManager::read_addon_manifest(addon_type)?;
+        for x in addon_list {
+            if !manifest_list.iter().any(|addon| addon.addon_matches(&x)){
+                unique_list.push(x);
+            }
+        }
+        let new_list = [unique_list,manifest_list].concat();
+        AddonManager::write_addon_manifest(&new_list,addon_type)?;
+        Ok(())
+    }
+    pub fn remove_addons_from_manifest(addon_list:Vec<ProfileAddon>, addon_type:AddonType) ->Result<(),InstallerError>{
+        let mut manifest_list = AddonManager::read_addon_manifest(addon_type)?.to_owned();
+        manifest_list.retain(|manifest_addon| !addon_list.iter().any(|target_addon| target_addon.addon_matches(manifest_addon)));
+        AddonManager::write_addon_manifest(&manifest_list,addon_type)?;
+        Ok(())
+    }
+    pub fn delete_addons_manifest(addon_type: AddonType)->Result<(),InstallerError>{
+        Ok(fs::remove_file(addon_type.get_addon_manifest())?)
+    }
 }
 
 
@@ -201,6 +222,9 @@ impl ProfileAddon{
         self.update_addon_pack(pack_dir,&sftp)
 
     }
+    pub fn addon_matches(&self,addon:&Self)->bool{
+        self.name == addon.name
+    }
 }
 
 #[cfg(test)]
@@ -251,7 +275,7 @@ mod tests{
     // }
     #[test]
     fn test_read_remote_addons(){
-        let result = AddonManager::read_remote_addon(AddonType::Mod);
+        let result = AddonManager::read_remote_addon(AddonType::ResourcePack);
         assert!(result.is_ok());
         let vec = result.unwrap();
         dbg!(vec);
@@ -295,13 +319,41 @@ mod tests{
         assert!(result.is_ok());
     }
     #[test]
+    #[serial]
     fn test_read_addon_manifest(){
         let result = AddonManager::read_addon_manifest(AddonType::ResourcePack);
         assert!(result.is_ok())
     }
     #[test]
+    #[serial]
     fn test_write_addon_manifest(){
-        let result = AddonManager::write_addon_manifest(AddonType::ResourcePack);
+        let result = AddonManager::write_addon_manifest(&AddonManager::read_remote_addon(AddonType::ResourcePack).unwrap(),AddonType::ResourcePack);
         assert!(result.is_ok());
+    }
+    #[test]
+    #[serial]
+    fn test_insert_addon_manifest(){
+        let addon_type = AddonType::ResourcePack;
+        let test_addon = ProfileAddon::new("hee haa",addon_type);
+
+        let result = AddonManager::insert_addons_into_manifest(Vec::from([ProfileAddon::new("hee haa", addon_type)]), addon_type);
+        assert!(result.is_ok());
+
+        let manifest = AddonManager::read_addon_manifest(addon_type).unwrap();
+        assert!(&manifest.iter().any(|addon| addon.addon_matches(&test_addon)));
+
+        AddonManager::remove_addons_from_manifest(Vec::from([ProfileAddon::new("hee haa", addon_type)]), addon_type).unwrap();
+    }
+
+    #[test]
+    #[serial]
+    fn test_remove_addon_manifest(){
+        let addon_type = AddonType::ResourcePack;
+        let test_addon = ProfileAddon::new("hee haa",addon_type);
+        let _ = AddonManager::insert_addons_into_manifest(Vec::from([test_addon.clone()]), addon_type);
+        let result = AddonManager::remove_addons_from_manifest(Vec::from([test_addon.clone()]), addon_type);
+        assert!(&result.is_ok());
+        let manifest = AddonManager::read_addon_manifest(addon_type).unwrap();
+        assert!(!&manifest.iter().any(|addon| addon.addon_matches(&test_addon)))
     }
 }
