@@ -12,7 +12,7 @@ export default function ResourcePack({pack,installed}:Readonly<{pack:ProfileAddo
     }
     const deletePack=async ()=>{
         await invoke("remove_local_resource_pack", {profileName:searchParams.get("profile"),packName:pack.name});
-        // await queryClient.refetchQueries(["local-profiles",searchParams.get("profile")])
+        await queryClient.refetchQueries(["local-profiles",searchParams.get("profile")])
     }
     if(installed){
         return(

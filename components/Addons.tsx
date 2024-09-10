@@ -11,7 +11,7 @@ import {FilePath} from "./profiles/profileMods/ProfileMods.tsx";
 export default function Addons({addonType}:Readonly<{ addonType:string }>){
     const [newAddons, setNewAddons] = useState<ProfileAddon[]|undefined>()
     const queryClient = useQueryClient();
-    let remoteResourcePacks:UseQueryResult<ProfileAddon[]> = useQuery(["remote-resource-packs"],async () => {
+    let remoteResourcePacks:UseQueryResult<ProfileAddon[]> = useQuery(["remote-addons",addonType],async () => {
         return await invoke("read_remote_addons",{addonType:addonType})
     })
     useEffect(()=>{
