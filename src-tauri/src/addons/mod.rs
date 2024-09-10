@@ -1,6 +1,7 @@
 use std::{fs, io};
+use std::fs::File;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{ PathBuf};
 use serde::{Deserialize, Serialize};
 use ssh2::{Sftp};
 use crate::installer::{InstallerConfig, InstallerError};
@@ -21,6 +22,17 @@ impl AddonType{
             AddonType::Mod => {
                 PathBuf::from(SFTP_MODS_PATH)
             }
+        }
+    }
+    pub fn get_addon_manifest(&self)->PathBuf{
+        return match self {
+            AddonType::ResourcePack => {
+                tauri::api::path::data_dir().unwrap().join("jman-mod-installer").join("remote-resourcepacks.json")
+            }
+            AddonType::Mod => {
+                tauri::api::path::data_dir().unwrap().join("jman-mod-installer").join("remote-mods.json")
+            }
+
         }
     }
     pub fn get_local_dir(&self,profile_name:&str)->Result<PathBuf,InstallerError>{
@@ -51,6 +63,15 @@ impl AddonManager{
             }
         }
         Ok(packs)
+    }
+    pub fn write_addon_manifest(addons:&Vec<ProfileAddon>,addon_type: AddonType)->Result<(),InstallerError>{
+        let mut manifest = File::create(addon_type.get_addon_manifest())?;
+        manifest.write(serde_json::to_string_pretty(&addons)?.as_ref())?;
+        Ok(())
+    }
+    pub fn read_addon_manifest(addon_type: AddonType)->Result<Vec<ProfileAddon>,InstallerError>{
+        let manifest = File::open(addon_type.get_addon_manifest())?;
+        Ok(serde_json::from_reader(manifest)?)
     }
 }
 
@@ -272,6 +293,15 @@ mod tests{
         let rp = ProfileAddon::new("optifine.jar",AddonType::Mod);
         let result = rp.download(&rp.addon_type.get_local_dir("new_profile").unwrap());
         assert!(result.is_ok());
-
+    }
+    #[test]
+    fn test_read_addon_manifest(){
+        let result = AddonManager::read_addon_manifest(AddonType::ResourcePack);
+        assert!(result.is_ok())
+    }
+    #[test]
+    fn test_write_addon_manifest(){
+        let result = AddonManager::write_addon_manifest(AddonType::ResourcePack);
+        assert!(result.is_ok());
     }
 }

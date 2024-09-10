@@ -138,7 +138,14 @@ fn read_specific_local_profile(profile_name:&str)->Result<LocalProfile,String> {
 }
 #[tauri::command(async)]
 fn read_remote_addons(addon_type: AddonType)->Result<Vec<ProfileAddon>,InstallerError>{
-    Ok(AddonManager::read_remote_addon(addon_type)?)
+    match AddonManager::read_addon_manifest(addon_type){
+        Ok(addons) => Ok(addons),
+        Err(_) => {
+            let addons = AddonManager::read_remote_addon(addon_type)?;
+            AddonManager::write_addon_manifest(&addons,addon_type)?;
+            Ok(addons)
+        }
+    }
 
 }
 #[tauri::command(async)]

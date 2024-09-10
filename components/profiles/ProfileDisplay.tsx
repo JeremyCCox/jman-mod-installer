@@ -11,11 +11,11 @@ export default function ProfileDisplay(){
         setProfileInfo({profile:searchParams.get("profile"),source:searchParams.get("source"),page:searchParams.get("page")})
     },[searchParams])
     switch(profileInfo.page){
-        case("resourcepack"):
+        case("resourcepacks"):
             return(
               <Addons addonType={"ResourcePack"}/>
             )
-        case("mod"):
+        case("mods"):
             return(
                 <Addons addonType={"Mod"}/>
             )

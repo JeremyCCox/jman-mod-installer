@@ -31,7 +31,10 @@ export default function SideBar(){
     }
     //e:React.MouseEvent<HTMLButtonElement>
     const selectResourcePacks=()=>{
-        setSearchParams({"page":"resourcepack"})
+        setSearchParams({"page":"resourcepacks"})
+    }
+    const selectMods=()=>{
+        setSearchParams({"page":"mods"})
     }
     return(
         <div className={'bg-red-500'}>
@@ -45,6 +48,9 @@ export default function SideBar(){
                     <h3 className={'text-2xl text-center font-bold p-2 bg-gray-700'}>Other</h3>
                     <button type={"button"} onClick={selectResourcePacks}>
                         Resource Packs
+                    </button>
+                    <button type={"button"} onClick={selectMods}>
+                        Mods
                     </button>
                 </div>
             </div>
