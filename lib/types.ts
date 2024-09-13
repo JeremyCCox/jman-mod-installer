@@ -26,7 +26,10 @@ export interface InstallerProfile{
     sftpUsername?:string,
     sftpPassword?:string
 }
-
+export enum AddonType{
+    Mod="Mod",
+    ResourcePack="ResourcePack",
+}
 export interface ProfileAddon{
     name:string,
     fileName:string,
