@@ -17,6 +17,9 @@
       "path": {
         "all": true
       },
+      "dialog": {
+        "open": true
+      },
       "os": {
         "all": true
       },

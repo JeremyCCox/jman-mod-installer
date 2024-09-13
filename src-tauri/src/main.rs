@@ -137,24 +137,20 @@ fn read_specific_local_profile(profile_name:&str)->Result<LocalProfile,String> {
     Ok(LocalProfile::open(profile_name)?)
 }
 #[tauri::command(async)]
+fn read_remote_addon(addon_name:&str,addon_type: AddonType)->Result<ProfileAddon,InstallerError>{
+    Ok(AddonManager::read_remote_addon(addon_name,addon_type)?)
+}
+#[tauri::command(async)]
 fn read_remote_addons(addon_type: AddonType)->Result<Vec<ProfileAddon>,InstallerError>{
-    match AddonManager::read_addon_manifest(addon_type){
-        Ok(addons) => Ok(addons),
-        Err(_) => {
-            let addons = AddonManager::read_remote_addon(addon_type)?;
-            AddonManager::write_addon_manifest(&addons,addon_type)?;
-            Ok(addons)
-        }
-    }
-
+    Ok(AddonManager::read_addon_manifest(addon_type)?)
 }
 #[tauri::command(async)]
 fn read_remote_resource_packs()->Result<Vec<ProfileAddon>,InstallerError>{
-    Ok(AddonManager::read_remote_addon(AddonType::ResourcePack)?)
+    Ok(AddonManager::read_remote_addons(AddonType::ResourcePack)?)
 }
 #[tauri::command(async)]
 fn read_remote_mods()->Result<Vec<ProfileAddon>,InstallerError>{
-    Ok(AddonManager::read_remote_addon(AddonType::Mod)?)
+    Ok(AddonManager::read_remote_addons(AddonType::Mod)?)
 }
 #[tauri::command(async)]
 fn verify_profile_files(profile_name:&str)->Result<LocalProfile,InstallerError>{
@@ -175,9 +171,10 @@ fn upload_additional_mods(profile_name:&str,mods_list:Vec<ProfileAddon>)->Result
     Ok(local_profile.upload_specific_addons(mods_list,AddonType::Mod)?)
 }
 #[tauri::command(async)]
-fn update_profile_addon(addon:ProfileAddon)->Result<ProfileAddon,InstallerError>{
-    addon.update_remote()?;
-    Ok(addon)
+fn update_addon(addon:ProfileAddon)->Result<(),InstallerError>{
+    AddonManager::update_addon(addon)?;
+    Ok(())
+
 }
 #[tauri::command(async)]
 fn upload_profile_addons(addons:Vec<ProfileAddon>)->Result<(),InstallerError>{
@@ -234,8 +231,9 @@ fn main() {
           read_specific_local_profile,
           read_remote_resource_packs,
           read_remote_mods,
+          read_remote_addon,
           read_remote_addons,
-          update_profile_addon,
+          update_addon,
           upload_profile_addons,
           verify_profile_files,
           delete_local_profile,

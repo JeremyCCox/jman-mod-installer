@@ -52,7 +52,11 @@ pub struct AddonManager{
 }
 
 impl AddonManager{
-    pub fn read_remote_addon(addon_type:AddonType)->Result<Vec<ProfileAddon>,InstallerError>{
+
+    pub fn read_remote_addon(addon_name:&str,addon_type:AddonType)->Result<ProfileAddon,InstallerError>{
+        Ok(AddonManager::read_addon_manifest(addon_type)?.into_iter().find(|addon| addon.addon_matches_name(addon_name)).unwrap())
+    }
+    pub fn read_remote_addons(addon_type:AddonType) ->Result<Vec<ProfileAddon>,InstallerError>{
         let sftp = InstallerConfig::open().unwrap().sftp_safe_connect().unwrap();
         let remote_path = addon_type.get_remote_dir();
         let mut packs:Vec<ProfileAddon> = Vec::new();
@@ -64,14 +68,31 @@ impl AddonManager{
         }
         Ok(packs)
     }
+    pub fn update_addon(addon:ProfileAddon)->Result<(),InstallerError>{
+        addon.update_remote()?;
+        let mut manifest_list = AddonManager::read_addon_manifest(addon.addon_type)?.to_owned();
+        manifest_list.retain(|manifest_addon| !manifest_addon.addon_matches(&addon));
+        manifest_list.push(addon.clone());
+        AddonManager::write_addon_manifest(&manifest_list,addon.addon_type)?;
+        Ok(())
+    }
+    pub fn update_addon_manifest(addon_type: AddonType)->Result<(),InstallerError>{
+        AddonManager::write_addon_manifest(&AddonManager::read_remote_addons(addon_type)?,addon_type)
+    }
     pub fn write_addon_manifest(addons:&Vec<ProfileAddon>,addon_type: AddonType)->Result<(),InstallerError>{
         let mut manifest = File::create(addon_type.get_addon_manifest())?;
         manifest.write(serde_json::to_string_pretty(&addons)?.as_ref())?;
         Ok(())
     }
     pub fn read_addon_manifest(addon_type: AddonType)->Result<Vec<ProfileAddon>,InstallerError>{
-        let manifest = File::open(addon_type.get_addon_manifest())?;
-        Ok(serde_json::from_reader(manifest)?)
+        match File::open(addon_type.get_addon_manifest()){
+            Ok(manifest) =>         Ok(serde_json::from_reader(manifest)?),
+            Err(_) => {
+                let addons = AddonManager::read_remote_addons(addon_type)?;
+                AddonManager::write_addon_manifest(&addons,addon_type)?;
+                Ok(addons)
+            }
+        }
     }
     pub fn insert_addons_into_manifest(addon_list:Vec<ProfileAddon>, addon_type:AddonType) ->Result<(),InstallerError>{
         let mut unique_list:Vec<ProfileAddon> = Vec::new();
@@ -225,6 +246,9 @@ impl ProfileAddon{
     pub fn addon_matches(&self,addon:&Self)->bool{
         self.name == addon.name
     }
+    pub fn addon_matches_name(&self,addon_name:&str)->bool{
+        self.name == addon_name
+    }
 }
 
 #[cfg(test)]
@@ -275,7 +299,7 @@ mod tests{
     // }
     #[test]
     fn test_read_remote_addons(){
-        let result = AddonManager::read_remote_addon(AddonType::ResourcePack);
+        let result = AddonManager::read_remote_addons(AddonType::ResourcePack);
         assert!(result.is_ok());
         let vec = result.unwrap();
         dbg!(vec);
@@ -327,7 +351,7 @@ mod tests{
     #[test]
     #[serial]
     fn test_write_addon_manifest(){
-        let result = AddonManager::write_addon_manifest(&AddonManager::read_remote_addon(AddonType::ResourcePack).unwrap(),AddonType::ResourcePack);
+        let result = AddonManager::write_addon_manifest(&AddonManager::read_remote_addons(AddonType::ResourcePack).unwrap(), AddonType::ResourcePack);
         assert!(result.is_ok());
     }
     #[test]
