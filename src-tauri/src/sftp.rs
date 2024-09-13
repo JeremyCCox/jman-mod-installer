@@ -43,7 +43,7 @@ const SFTP_PROFILES_DIR: &str = "/upload/profiles/";
 // }
 
 
-pub fn sftp_remove_dir(clean_path:&PathBuf,sftp:&Sftp)->Result<(),Error>{
+pub fn sftp_remove_dir(clean_path:&PathBuf,sftp:&Sftp)->Result<(),InstallerError>{
     match sftp.lstat(clean_path).unwrap().is_dir(){
         true => {
             match sftp.readdir(clean_path){
@@ -54,7 +54,7 @@ pub fn sftp_remove_dir(clean_path:&PathBuf,sftp:&Sftp)->Result<(),Error>{
                     sftp.rmdir(clean_path)?;
                 }
                 Err(err) => {
-                    return Err(err)
+                    return Err(InstallerError::from(err))
                 }
             }
         }

@@ -5,6 +5,7 @@ use std::path::{ PathBuf};
 use serde::{Deserialize, Serialize};
 use ssh2::{Sftp};
 use crate::installer::{InstallerConfig, InstallerError};
+use crate::sftp::sftp_remove_dir;
 const SFTP_MODS_PATH:&str = "/upload/mods";
 const SFTP_RESOURCE_PACKS_PATH: &str ="/upload/resource_packs";
 
@@ -94,6 +95,13 @@ impl AddonManager{
             }
         }
     }
+    pub fn add_new_addons(addons:Vec<ProfileAddon>,addon_type: AddonType)->Result<(),InstallerError>{
+        AddonManager::insert_addons_into_manifest(addons.clone(),addon_type)?;
+        for addon in addons {
+            addon.upload(&addon.location).unwrap()
+        }
+        Ok(())
+    }
     pub fn insert_addons_into_manifest(addon_list:Vec<ProfileAddon>, addon_type:AddonType) ->Result<(),InstallerError>{
         let mut unique_list:Vec<ProfileAddon> = Vec::new();
         let manifest_list = AddonManager::read_addon_manifest(addon_type)?;
@@ -111,6 +119,11 @@ impl AddonManager{
         manifest_list.retain(|manifest_addon| !addon_list.iter().any(|target_addon| target_addon.addon_matches(manifest_addon)));
         AddonManager::write_addon_manifest(&manifest_list,addon_type)?;
         Ok(())
+    }
+    pub fn delete_addon(addon:ProfileAddon)->Result<(),InstallerError>{
+        let addons:Vec<ProfileAddon> = Vec::from([addon.clone()]);
+        let _ = addon.delete_remote();
+        AddonManager::remove_addons_from_manifest(addons,addon.addon_type)
     }
     pub fn delete_addons_manifest(addon_type: AddonType)->Result<(),InstallerError>{
         Ok(fs::remove_file(addon_type.get_addon_manifest())?)
@@ -219,8 +232,6 @@ impl ProfileAddon{
         Ok(())
     }
     pub fn upload_addon(&self,source:&PathBuf,dest:&PathBuf,sftp:&Sftp) ->Result<(),InstallerError>{
-        dbg!(&source);
-        dbg!(&dest);
         let mut upload_file = fs::File::open(source)?;
         let mut remote_file = sftp.create(dest.join(&self.file_name).as_path())?;
         io::copy(&mut upload_file, &mut remote_file)?;
@@ -242,6 +253,12 @@ impl ProfileAddon{
         let pack_dir= &self.addon_type.get_remote_dir().join(&self.name);
         self.update_addon_pack(pack_dir,&sftp)
 
+    }
+    pub fn delete_remote(&self)->Result<(),InstallerError>{
+        let sftp = InstallerConfig::open().unwrap().sftp_safe_connect()?;
+        let pack_dir= &self.addon_type.get_remote_dir().join(&self.name);
+        dbg!(&pack_dir);
+        sftp_remove_dir(pack_dir,&sftp)
     }
     pub fn addon_matches(&self,addon:&Self)->bool{
         self.name == addon.name
