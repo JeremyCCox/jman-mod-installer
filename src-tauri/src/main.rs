@@ -174,13 +174,19 @@ fn upload_additional_mods(profile_name:&str,mods_list:Vec<ProfileAddon>)->Result
 fn update_addon(addon:ProfileAddon)->Result<(),InstallerError>{
     AddonManager::update_addon(addon)?;
     Ok(())
-
+}
+#[tauri::command(async)]
+fn delete_addon(addon:ProfileAddon)->Result<(),InstallerError>{
+    AddonManager::delete_addon(addon)
+}
+#[tauri::command(async)]
+fn add_new_profile_addons(addons:Vec<ProfileAddon>,addon_type: AddonType)->Result<(),InstallerError>{
+    AddonManager::add_new_addons(addons,addon_type)
 }
 #[tauri::command(async)]
 fn upload_profile_addons(addons:Vec<ProfileAddon>)->Result<(),InstallerError>{
     for addon in addons {
-        dbg!(&addon);
-        addon.upload(&addon.location).unwrap()
+        addon.upload(&addon.location).unwrap();
     }
     Ok(())
 }
@@ -233,7 +239,9 @@ fn main() {
           read_remote_mods,
           read_remote_addon,
           read_remote_addons,
+          add_new_profile_addons,
           update_addon,
+          delete_addon,
           upload_profile_addons,
           verify_profile_files,
           delete_local_profile,
