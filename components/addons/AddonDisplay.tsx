@@ -66,13 +66,21 @@ export default function AddonDisplay({addonType}:Readonly<{ addonType:AddonType 
                 console.log("default hit")
         }
     }
-
+    const deleteAddon=async ()=>{
+        await invoke("delete_addon",{addon:addon.data})
+        await queryClient.refetchQueries(["remote-addons",addonType])
+        searchParams.delete("addon_name")
+        setSearchParams(searchParams);
+    }
 
     return(
         <div className={'w-full min-h-[300px] bg-yellow-300 flex flex-col'}>
             <h2 className={'text-center font-bold'}>
                 {searchParams.get("addon_name")}
             </h2>
+            <div>
+                <button type={"button"} onClick={deleteAddon}>Delete Addon</button>
+            </div>
             <AddonDependencies addon={addon} mutateAddon={mutateAddon}/>
         </div>
     )
