@@ -2,7 +2,8 @@ import {useSearchParams} from "react-router-dom";
 import {useEffect, useState} from "react";
 import LocalProfile from "../LocalProfile.tsx";
 import RemoteProfileInfo from "../RemoteProfileInfo.tsx";
-import Addons from "../Addons.tsx";
+import Addons from "../addons/Addons.tsx";
+import {AddonType} from "../../lib/types.ts";
 
 export default function ProfileDisplay(){
     const [searchParams] = useSearchParams();
@@ -13,11 +14,11 @@ export default function ProfileDisplay(){
     switch(profileInfo.page){
         case("resourcepacks"):
             return(
-              <Addons addonType={"ResourcePack"}/>
+              <Addons addonType={AddonType.ResourcePack}/>
             )
         case("mods"):
             return(
-                <Addons addonType={"Mod"}/>
+                <Addons addonType={AddonType.Mod}/>
             )
         case("profile"):
             if(profileInfo.profile){
