@@ -33,7 +33,7 @@ export default function AddonDependencies({addon,mutateAddon}:Readonly<{addon:Us
     }
 
     return(
-        <div className={'w-2/3 m-auto '}>
+        <div className={'w-2/3 mx-auto '}>
             {addon.data?.dependencies&&
                 <DependencyList dependencies={addon.data?.dependencies} updateDependencies={updateDependencies}/>
             }
