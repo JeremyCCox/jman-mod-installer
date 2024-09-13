@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use std::fs::File;
 use std::io::Write;
 use serde::{Deserialize, Serialize};
-use crate::addons::{AddonType, ProfileAddon};
+use crate::addons::{AddonManager, AddonType, ProfileAddon};
 use crate::installer::{InstallerConfig, InstallerError};
 use crate::launcher::{LauncherProfile, LauncherProfiles};
 use crate::profiles::{Profile};
@@ -50,9 +50,6 @@ impl LocalProfile{
         Ok(())
     }
     pub fn install_addons(&mut self,addon_list:Vec<&str>,addon_type: AddonType)->Result<(),InstallerError>{
-        let installer_config = InstallerConfig::open().unwrap();
-        let profile_path = installer_config.default_game_dir.unwrap();
-        let local_path = profile_path.join("profiles").join(&self.name);
         let mut dependencies:HashSet<String>= HashSet::new();
         let mut addons:Vec<ProfileAddon> = self.get_type_addons(addon_type).unwrap();
         for a in addon_list.iter(){
@@ -79,14 +76,15 @@ impl LocalProfile{
         let mut installed_addons = self.get_type_addons(addon_type).unwrap();
         let mut dependencies:HashSet<String>= HashSet::new();
 
-        for x in mods_list {
+        for x in mods_list.clone() {
             let mut file = File::open(&x.location)?;
             let new_mod = x.clone();
             dependencies.extend(x.dependencies);
-            let mut new_file = File::create(addons_path.join(x.file_name))?;
+            let mut new_file = File::create(addons_path.join(&x.file_name))?;
             io::copy(&mut file, &mut new_file)?;
             installed_addons.push(new_mod);
         }
+        AddonManager::insert_addons_into_manifest(mods_list, addon_type)?;
 
         self.set_type_addons(installed_addons,addon_type)?;
 
