@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient, UseQueryResult} from "react-query";
+import {useQuery, useQueryClient, UseQueryResult} from "react-query";
 import {AddonType, ProfileAddon} from "../../lib/types";
 import {invoke} from "@tauri-apps/api";
 import LoadingSpinner from "../LoadingSpinner";
@@ -36,12 +36,13 @@ export default function Addons({addonType}:Readonly<{ addonType:AddonType }>){
     }
     const installNewAddons=async () => {
         // console.log(newAddons)
-        await invoke("upload_profile_addons",{addons:newAddons})
+        await invoke("add_new_profile_addons",{addons:newAddons,addonType})
+        await queryClient.refetchQueries(["remote-addons", addonType])
     }
     return(
         <div className={'flex flex-col w-full'}>
             <div className={'flex flex-wrap relative'}>
-                <h3 className={'text-center font-bold text-2xl w-full '}>Mods</h3>
+                <h3 className={'text-center font-bold text-2xl w-full '}>{addonType===AddonType.Mod?"Mods":addonType===AddonType.ResourcePack?"Resource Packs":addonType}</h3>
                 <FileInput fileHandler={fileHandler}/>
             </div>
             <div>
@@ -61,7 +62,7 @@ export default function Addons({addonType}:Readonly<{ addonType:AddonType }>){
                 :
                 remoteAddons.data?
                     <div className={'border border-black w-full flex lg:flex-row flex-col-reverse'}>
-                        <div className={''}>
+                        <div className={'bg-pink-300 max-w-[350px] max-h-screen overflow-y-auto'}>
                             {remoteAddons.data.map(addon=>{
                                 return(
                                     <AddonRow addon={addon} key={addon.name} />
