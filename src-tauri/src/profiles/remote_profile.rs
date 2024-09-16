@@ -46,8 +46,15 @@ impl RemoteProfile{
     pub fn install_addons(&self,addon_type: AddonType)->Result<(),InstallerError>{
         let mods_list:Vec<ProfileAddon> = self.get_type_addons(addon_type).unwrap();
         for m in mods_list.iter(){
-            m.download(&addon_type.get_local_dir(&self.name)?).unwrap()
+            m.download(&addon_type.get_local_dir(&self.name)?)?;
         }
+        Ok(())
+    }
+    pub fn remove_addons(&mut self, addons:Vec<ProfileAddon>,addon_type: AddonType)->Result<(),InstallerError>{
+        let mut mods_list = self.get_type_addons(addon_type)?;
+        mods_list.retain(|addon| !addons.iter().any(|remove_addon| remove_addon.addon_matches(addon)));
+        self.set_type_addons(mods_list,addon_type)?;
+        self.save_profile()?;
         Ok(())
     }
     pub fn save_profile(&self)->Result<(),InstallerError>{
@@ -219,7 +226,7 @@ mod test{
     use std::fs;
     use std::path::PathBuf;
     use serial_test::serial;
-    use crate::addons::AddonType;
+    use crate::addons::{AddonType, ProfileAddon};
     use crate::installer::InstallerConfig;
     use crate::profiles::local_profile::LocalProfile;
     use crate::profiles::{Profile, SFTP_PROFILES_DIR};
@@ -313,6 +320,19 @@ mod test{
         let profile_name = "jman_modpack";
         let remote_profile = RemoteProfile::open(profile_name).unwrap();
         dbg!(&remote_profile);
+    }
+    #[test]
+    fn test_remove_resource_pack(){
+        let profile_name = "test_profile";
+        let base_profile = RemoteProfile::open(profile_name).unwrap();
+        let new_mod = ProfileAddon::new("testdep1",AddonType::Mod);
+        let mod_list = Vec::from([new_mod]);
+
+        let mut remote_profile = base_profile.copy("test_modpack2").unwrap();
+        let result = remote_profile.remove_addons(mod_list,AddonType::Mod);
+        assert!(result.is_ok());
+        remote_profile.delete().unwrap();
+
     }
     #[test]
     fn test_read_specific_remote_profile(){
