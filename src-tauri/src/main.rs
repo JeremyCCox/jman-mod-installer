@@ -59,7 +59,7 @@ fn clear_installer_config()->Result<(),String>{
 #[tauri::command(async)]
 fn download_sftp_profile(profile_name:&str)->Result<(),String>{
     let remote_profile =RemoteProfile::open(profile_name)?;
-    dbg!(remote_profile.install_profile()?);
+    remote_profile.install_profile()?;
     Ok(())
 }
 #[tauri::command(async)]
@@ -92,6 +92,11 @@ fn install_specified_mods(profile_name:&str,mods_list:Vec<&str>)->Result<(),Stri
 fn install_resource_pack(profile_name:&str,pack_name:&str)->Result<(),String>{
     let mut local_profile = LocalProfile::open(profile_name)?;
     Ok(local_profile.install_addons(Vec::from([pack_name]),AddonType::ResourcePack)?)
+}
+#[tauri::command(async)]
+fn remove_addon_from_local_profile(profile_name:&str,addon:ProfileAddon)->Result<(),String>{
+    let mut local_profile = LocalProfile::open(profile_name)?;
+    Ok(local_profile.delete_addon(addon.name.as_str(),addon.addon_type)?)
 }
 #[tauri::command(async)]
 fn remove_local_resource_pack(profile_name:&str,pack_name:&str)->Result<(),String>{
@@ -225,6 +230,7 @@ fn main() {
           install_new_addons,
           install_specified_mods,
           install_resource_pack,
+          remove_addon_from_local_profile,
           remove_local_resource_pack,
           upload_additional_mods,
           read_installer_config,
