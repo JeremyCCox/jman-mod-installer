@@ -3,7 +3,8 @@ import {useQuery, useQueryClient, UseQueryResult} from "react-query";
 import CompareLocalProfile from "./CompareLocalProfile.tsx";
 import {invoke} from "@tauri-apps/api";
 import LoadingSpinner from "./LoadingSpinner.tsx";
-import {RemoteProfile} from "../lib/types.ts";
+import { ProfileAddon, RemoteProfile} from "../lib/types.ts";
+import ProfileAddonRow from "./profiles/ProfileAddon.tsx";
 
 export default function RemoteProfileInfo({profileName}:Readonly<{profileName:string}>){
     const [ loading,setLoading] = useState(false)
@@ -12,21 +13,14 @@ export default function RemoteProfileInfo({profileName}:Readonly<{profileName:st
 
     const installProfile= async (e:React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
         setLoading(true)
-        console.log(e.currentTarget.name);
         // @ts-ignore
-        invoke('download_sftp_profile', {profileName: e.currentTarget.name}).then((res:string)=>{
-            queryClient.invalidateQueries("profiles")
-            queryClient.invalidateQueries(["list_local_profiles"])
-            queryClient.invalidateQueries(["list_remote_profiles"])
-        }).catch((err)=>{
+        await invoke('download_sftp_profile', {profileName: e.currentTarget.name}).catch(err=>{
             console.error(err)
-        }).finally(()=>{
-
-            queryClient.refetchQueries(["list_remote_profiles"])
-            queryClient.refetchQueries(["list_local_profiles"])
-            queryClient.refetchQueries("profiles")
-            setLoading(false)
         })
+        await queryClient.refetchQueries(["list_remote_profiles"])
+        await queryClient.refetchQueries(["list_local_profiles"])
+        await queryClient.refetchQueries("profiles")
+        setLoading(false)
     }
     const local_profiles:UseQueryResult<[string]> = useQuery(["list_local_profiles"],async () => {
         return await invoke<[string]>("list_local_profiles").then(res => {
@@ -53,7 +47,11 @@ export default function RemoteProfileInfo({profileName}:Readonly<{profileName:st
             setLoading(false)
         });
     }
-
+    const removeAddon=async (addon:ProfileAddon)=>{
+        await invoke("remove_addon_from_remote_profile", {profileName, addon,addonType:addon.addonType})
+        await queryClient.refetchQueries(["remote_profiles",profileName])
+        await queryClient.refetchQueries(["list_local_profiles",profileName])
+    }
 
     return(
 
@@ -80,11 +78,9 @@ export default function RemoteProfileInfo({profileName}:Readonly<{profileName:st
                                     <CompareLocalProfile profileName={remoteProfile.data.name} key={profileName} />
                                     <div className={'border border-black m-2'}>
                                         <h3 className={'text-center font-bold text-2xl'}>Mods</h3>
-                                        {remoteProfile.data.mods?.map(mod=>{
+                                        {remoteProfile.data.mods?.map(addon=>{
                                             return(
-                                                <p className={''} key={mod.name}>
-                                                    {mod.name}
-                                                </p>
+                                                <ProfileAddonRow addon={addon} deleteFn={removeAddon}/>
                                             )
                                         })}
                                     </div>
