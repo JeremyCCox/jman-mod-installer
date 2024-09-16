@@ -1,5 +1,21 @@
 import {UseQueryResult} from "react-query";
+import {Dispatch, SetStateAction} from "react";
 
+export interface LoadingValues{
+    loading?:boolean,
+    message?:string,
+    error?:string,
+
+}
+export interface LoadingContextType {
+    loadingValues:({}:LoadingValues)=>void
+    loading?:boolean,
+    setLoading:Dispatch<SetStateAction<boolean>>,
+    message?:string,
+    setMessage:Dispatch<SetStateAction<string|undefined>>,
+    error?:string,
+    setError:Dispatch<SetStateAction<string|undefined>>,
+}
 export interface LauncherProfile{
     created?:string,
     game_dir?:string,

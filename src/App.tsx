@@ -6,6 +6,7 @@ import {ConfigProvider, ConfigValid} from "../components/contextHooks/configCont
 import LoginPage from "../components/LoginPage.tsx";
 import Settings from "../components/Settings.tsx";
 import Layout from "../components/Layout.tsx";
+import {LoadingProvider} from "../components/contextHooks/LoadingContext.tsx";
 
 export default function App(){
     const queryClient = new QueryClient({defaultOptions:{
@@ -21,7 +22,9 @@ export default function App(){
                         <Routes>
                             <Route path={'/*'} element={
                                 <ConfigValid>
-                                    <Layout/>
+                                    <LoadingProvider>
+                                        <Layout/>
+                                    </LoadingProvider>
                                 </ConfigValid>
                             }>
                                 <Route path={""} element={
