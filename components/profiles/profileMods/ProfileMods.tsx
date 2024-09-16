@@ -6,6 +6,7 @@ import NewAddonRow from "../../ModInstaller/NewAddonRow.tsx";
 import {invoke} from "@tauri-apps/api";
 import {useSearchParams} from "react-router-dom";
 import {useQueryClient} from "react-query";
+import ProfileAddonRow from "../ProfileAddon.tsx";
 
 export class FilePath{
     path:string;
@@ -76,6 +77,11 @@ export default function ProfileMods({mods}:Readonly<{ mods?:ProfileAddon[] }>){
         await queryClient.refetchQueries(["compare_profiles",URLSearchParams.get("profile")])
         setNewMods(undefined)
     }
+    const removeAddon=async (addon:ProfileAddon)=>{
+        await invoke("remove_addon_from_local_profile",{profileName:URLSearchParams.get("profile"),addon})
+        await queryClient.refetchQueries(["local-profiles",URLSearchParams.get("profile")])
+        await queryClient.refetchQueries(["compare_profiles",URLSearchParams.get("profile")])
+    }
 
     if(mods){
         return(
@@ -113,14 +119,10 @@ export default function ProfileMods({mods}:Readonly<{ mods?:ProfileAddon[] }>){
                         Install new mods
                     </button>
                 }
-
-
                 <div className={'max-h-60 border-2 border-black overflow-y-auto'}>
                     {mods.map(mod=>{
                         return(
-                            <p className={''} key={mod.name}>
-                                {mod.name}
-                            </p>
+                            <ProfileAddonRow addon={mod} deleteFn={removeAddon}/>
                         )
                     })}
                 </div>
