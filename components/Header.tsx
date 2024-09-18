@@ -7,13 +7,13 @@ export default function Header(){
     const config = useConfig();
     return(
         <>
-            <header className={''}>
+            <header className={'w-full'}>
                 <div className={'float-left'}>
                     <button type={'button'} onClick={()=>{navigate("")}} disabled={location.pathname === "/"}>
                         Home
                     </button>
                 </div>
-                <h1 className={'absolute text-center w-full'}>JMAN Mod Loader</h1>
+                <h1 className={'w-fit mx-auto'}>JMAN Mod Loader</h1>
                 <div className={'absolute flex top-0 right-0'}>
                     <button type={'button'} onClick={()=>{config.logout()}} disabled={location.pathname === "/settings"}>
                         Logout
