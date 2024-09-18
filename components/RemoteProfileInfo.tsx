@@ -55,7 +55,7 @@ export default function RemoteProfileInfo({profileName}:Readonly<{profileName:st
 
     return(
 
-            <div className={"w-1/2 min-w-64 lg:min-w-1/4 lg:w-1/4 h-50 px-4 flex flex-col py-8 border-b-black border-b-4"}>
+            <div className={" h-50 px-4 flex flex-col py-8 border-b-black border-b-4"}>
                 <h4 className={'text-xl font-bold text-center grid'}>
                     {profileName}{local_profiles.data&&local_profiles.data.includes(profileName)?<span className={'text-green-500 font-bold'}>Installed ✓</span>:<span className={'text-red-500'}>Not installed X</span>}
                 </h4>
@@ -67,7 +67,7 @@ export default function RemoteProfileInfo({profileName}:Readonly<{profileName:st
                 {/*</pre>*/}
 
                 {(remoteProfile.isLoading||remoteProfile.data)&&
-                        <div className={'h-60 w-full border-2 border-black overflow-y-auto'}>
+                        <div className={'h-[60vh] w-full border-2 border-black overflow-y-auto'}>
                             {remoteProfile.isLoading&&
                                 <div className={'text-center'}>
                                     <LoadingSpinner/>
@@ -75,7 +75,9 @@ export default function RemoteProfileInfo({profileName}:Readonly<{profileName:st
                             }
                             {remoteProfile.data&&
                                 <>
+                                {local_profiles.data?.includes(profileName)&&
                                     <CompareLocalProfile profileName={remoteProfile.data.name} key={profileName} />
+                                }
                                     <div className={'border border-black m-2'}>
                                         <h3 className={'text-center font-bold text-2xl'}>Mods</h3>
                                         {remoteProfile.data.mods?.map(addon=>{
