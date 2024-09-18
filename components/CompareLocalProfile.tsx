@@ -70,7 +70,7 @@ export default function CompareLocalProfile({profileName}:Readonly<{ profileName
                     <>
                         {
                             compareProfileInfo.data.extras.length === 0 && compareProfileInfo.data.missing.length === 0 &&
-                            <h3 className={'font-bold text-center text-green-500'}>This profile is up to date!</h3>
+                            <h3 className={'font-bold text-center text-green-500'}>Local and Remote profiles match!</h3>
                         }
                         {compareProfileInfo.data.missing.length>0&&
                             <ModDiscrepancies modlist={compareProfileInfo.data.missing} notice={`You are missing ${compareProfileInfo.data.missing.length} mod${compareProfileInfo.data.missing.length>1?'s':''}!`} callback={installMissingMods} loading={loading} callbackTitle={"Install missing mods!"}/>
