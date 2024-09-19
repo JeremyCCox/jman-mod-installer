@@ -1,14 +1,11 @@
-import React, {useEffect, useState} from "react";
+import {useEffect, useState} from "react";
 import {listen} from '@tauri-apps/api/event'
 import { open } from '@tauri-apps/api/dialog';
 
 
 export default function FileInput({fileHandler}:Readonly<{fileHandler:(filePaths:string[])=>void}>){
     const [inputEnabled,setInputEnabled]=useState(false)
-    const inputAction=(e:React.DragEvent<HTMLInputElement>)=>{
-        console.log(e.currentTarget.files)
 
-    }
     const cleanDrag=(e:any)=>{
         e.preventDefault();
         // e.stopPropagation();
