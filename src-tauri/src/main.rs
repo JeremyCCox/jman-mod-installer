@@ -59,7 +59,7 @@ fn clear_installer_config()->Result<(),String>{
 #[tauri::command(async)]
 fn download_sftp_profile(profile_name:&str)->Result<(),String>{
     let remote_profile =RemoteProfile::open(profile_name)?;
-    dbg!(remote_profile.install_profile()?);
+    remote_profile.install_profile()?;
     Ok(())
 }
 #[tauri::command(async)]
@@ -77,6 +77,12 @@ fn install_new_mods(profile: &str,mod_list:Vec<ProfileAddon>)->Result<(),Install
     local_profile.install_new_addons(mod_list,AddonType::Mod)?;
     Ok(())
 }
+#[tauri::command]
+fn install_new_addons(profile: &str,addon_list:Vec<ProfileAddon>,addon_type: AddonType)->Result<(),InstallerError>{
+    let mut local_profile = LocalProfile::open(profile)?;
+    local_profile.install_new_addons(addon_list,addon_type)?;
+    Ok(())
+}
 #[tauri::command(async)]
 fn install_specified_mods(profile_name:&str,mods_list:Vec<&str>)->Result<(),String>{
     let mut local_profile = LocalProfile::open(profile_name).unwrap();
@@ -86,6 +92,16 @@ fn install_specified_mods(profile_name:&str,mods_list:Vec<&str>)->Result<(),Stri
 fn install_resource_pack(profile_name:&str,pack_name:&str)->Result<(),String>{
     let mut local_profile = LocalProfile::open(profile_name)?;
     Ok(local_profile.install_addons(Vec::from([pack_name]),AddonType::ResourcePack)?)
+}
+#[tauri::command(async)]
+fn remove_addon_from_local_profile(profile_name:&str,addon:ProfileAddon)->Result<(),String>{
+    let mut local_profile = LocalProfile::open(profile_name)?;
+    Ok(local_profile.delete_addon(addon.name.as_str(),addon.addon_type)?)
+}
+#[tauri::command(async)]
+fn remove_addon_from_remote_profile(profile_name:&str,addon:ProfileAddon,addon_type: AddonType)->Result<(),InstallerError>{
+    let mut remote_profile = RemoteProfile::open(profile_name)?;
+    remote_profile.remove_addons(Vec::from([addon]),addon_type)
 }
 #[tauri::command(async)]
 fn remove_local_resource_pack(profile_name:&str,pack_name:&str)->Result<(),String>{
@@ -131,12 +147,20 @@ fn read_specific_local_profile(profile_name:&str)->Result<LocalProfile,String> {
     Ok(LocalProfile::open(profile_name)?)
 }
 #[tauri::command(async)]
+fn read_remote_addon(addon_name:&str,addon_type: AddonType)->Result<ProfileAddon,InstallerError>{
+    Ok(AddonManager::read_remote_addon(addon_name,addon_type)?)
+}
+#[tauri::command(async)]
+fn read_remote_addons(addon_type: AddonType)->Result<Vec<ProfileAddon>,InstallerError>{
+    Ok(AddonManager::read_addon_manifest(addon_type)?)
+}
+#[tauri::command(async)]
 fn read_remote_resource_packs()->Result<Vec<ProfileAddon>,InstallerError>{
-    Ok(AddonManager::read_remote_addon(AddonType::ResourcePack)?)
+    Ok(AddonManager::read_remote_addons(AddonType::ResourcePack)?)
 }
 #[tauri::command(async)]
 fn read_remote_mods()->Result<Vec<ProfileAddon>,InstallerError>{
-    Ok(AddonManager::read_remote_addon(AddonType::Mod)?)
+    Ok(AddonManager::read_remote_addons(AddonType::Mod)?)
 }
 #[tauri::command(async)]
 fn verify_profile_files(profile_name:&str)->Result<LocalProfile,InstallerError>{
@@ -157,11 +181,29 @@ fn upload_additional_mods(profile_name:&str,mods_list:Vec<ProfileAddon>)->Result
     Ok(local_profile.upload_specific_addons(mods_list,AddonType::Mod)?)
 }
 #[tauri::command(async)]
-fn update_profile_addon(addon:ProfileAddon,addon_type: AddonType)->Result<ProfileAddon,InstallerError>{
-    addon.update_remote()?;
-    Ok(addon)
+fn refresh_addons(addon_type: AddonType)->Result<(),InstallerError>{
+    AddonManager::update_addon_manifest(addon_type)
 }
-
+#[tauri::command(async)]
+fn update_addon(addon:ProfileAddon)->Result<(),InstallerError>{
+    AddonManager::update_addon(addon)?;
+    Ok(())
+}
+#[tauri::command(async)]
+fn delete_addon(addon:ProfileAddon)->Result<(),InstallerError>{
+    AddonManager::delete_addon(addon)
+}
+#[tauri::command(async)]
+fn add_new_profile_addons(addons:Vec<ProfileAddon>,addon_type: AddonType)->Result<(),InstallerError>{
+    AddonManager::add_new_addons(addons,addon_type)
+}
+#[tauri::command(async)]
+fn upload_profile_addons(addons:Vec<ProfileAddon>)->Result<(),InstallerError>{
+    for addon in addons {
+        addon.upload(&addon.location).unwrap();
+    }
+    Ok(())
+}
 #[tauri::command(async)]
 fn profile_location(profile_name:&str)->Result<(),String>{
     Ok(open_profile_location(profile_name)?)
@@ -194,8 +236,11 @@ fn main() {
           clear_installer_config,
           install_missing_mods,
           install_new_mods,
+          install_new_addons,
           install_specified_mods,
           install_resource_pack,
+          remove_addon_from_local_profile,
+          remove_addon_from_remote_profile,
           remove_local_resource_pack,
           upload_additional_mods,
           read_installer_config,
@@ -208,7 +253,13 @@ fn main() {
           read_specific_local_profile,
           read_remote_resource_packs,
           read_remote_mods,
-          update_profile_addon,
+          read_remote_addon,
+          read_remote_addons,
+          add_new_profile_addons,
+          refresh_addons,
+          update_addon,
+          delete_addon,
+          upload_profile_addons,
           verify_profile_files,
           delete_local_profile,
           copy_local_profile,

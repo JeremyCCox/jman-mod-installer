@@ -11,7 +11,7 @@ export default function ResourcePack({pack,installed}:Readonly<{pack:ProfileAddo
         await queryClient.refetchQueries(["local-profiles",searchParams.get("profile")])
     }
     const deletePack=async ()=>{
-        await invoke("remove_local_resource_pack", {profileName:searchParams.get("profile"),packName:pack.name})
+        await invoke("remove_local_resource_pack", {profileName:searchParams.get("profile"),packName:pack.name});
         await queryClient.refetchQueries(["local-profiles",searchParams.get("profile")])
     }
     if(installed){
@@ -24,7 +24,7 @@ export default function ResourcePack({pack,installed}:Readonly<{pack:ProfileAddo
                     {pack.dependencies?.length}
                 </span>
                 <button className={'max-w-[15%]'} onClick={deletePack}>Delete</button>
-                <div className={'top-full w-full absolute border-black border-2 bg-gray-300'}>
+                <div className={'top-full w-full  border-black border-2 bg-gray-300'}>
                     {pack.dependencies?.map(value => {
                         return (<span>{value}</span>)
                     })}

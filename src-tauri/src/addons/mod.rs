@@ -1,9 +1,11 @@
 use std::{fs, io};
+use std::fs::File;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{ PathBuf};
 use serde::{Deserialize, Serialize};
 use ssh2::{Sftp};
 use crate::installer::{InstallerConfig, InstallerError};
+use crate::sftp::sftp_remove_dir;
 const SFTP_MODS_PATH:&str = "/upload/mods";
 const SFTP_RESOURCE_PACKS_PATH: &str ="/upload/resource_packs";
 
@@ -23,6 +25,17 @@ impl AddonType{
             }
         }
     }
+    pub fn get_addon_manifest(&self)->PathBuf{
+        return match self {
+            AddonType::ResourcePack => {
+                tauri::api::path::data_dir().unwrap().join("jman-mod-installer").join("remote-resourcepacks.json")
+            }
+            AddonType::Mod => {
+                tauri::api::path::data_dir().unwrap().join("jman-mod-installer").join("remote-mods.json")
+            }
+
+        }
+    }
     pub fn get_local_dir(&self,profile_name:&str)->Result<PathBuf,InstallerError>{
         let def_path = InstallerConfig::open()?.default_game_dir.unwrap();
         return match self{
@@ -40,7 +53,11 @@ pub struct AddonManager{
 }
 
 impl AddonManager{
-    pub fn read_remote_addon(addon_type:AddonType)->Result<Vec<ProfileAddon>,InstallerError>{
+
+    pub fn read_remote_addon(addon_name:&str,addon_type:AddonType)->Result<ProfileAddon,InstallerError>{
+        Ok(AddonManager::read_addon_manifest(addon_type)?.into_iter().find(|addon| addon.addon_matches_name(addon_name)).unwrap())
+    }
+    pub fn read_remote_addons(addon_type:AddonType) ->Result<Vec<ProfileAddon>,InstallerError>{
         let sftp = InstallerConfig::open().unwrap().sftp_safe_connect().unwrap();
         let remote_path = addon_type.get_remote_dir();
         let mut packs:Vec<ProfileAddon> = Vec::new();
@@ -51,6 +68,65 @@ impl AddonManager{
             }
         }
         Ok(packs)
+    }
+    pub fn update_addon(addon:ProfileAddon)->Result<(),InstallerError>{
+        addon.update_remote()?;
+        let mut manifest_list = AddonManager::read_addon_manifest(addon.addon_type)?.to_owned();
+        manifest_list.retain(|manifest_addon| !manifest_addon.addon_matches(&addon));
+        manifest_list.push(addon.clone());
+        AddonManager::write_addon_manifest(&manifest_list,addon.addon_type)?;
+        Ok(())
+    }
+    pub fn update_addon_manifest(addon_type: AddonType)->Result<(),InstallerError>{
+        AddonManager::write_addon_manifest(&AddonManager::read_remote_addons(addon_type)?,addon_type)
+    }
+    pub fn write_addon_manifest(addons:&Vec<ProfileAddon>,addon_type: AddonType)->Result<(),InstallerError>{
+        let mut manifest = File::create(addon_type.get_addon_manifest())?;
+        manifest.write(serde_json::to_string_pretty(&addons)?.as_ref())?;
+        Ok(())
+    }
+    pub fn read_addon_manifest(addon_type: AddonType)->Result<Vec<ProfileAddon>,InstallerError>{
+        match File::open(addon_type.get_addon_manifest()){
+            Ok(manifest) =>         Ok(serde_json::from_reader(manifest)?),
+            Err(_) => {
+                let addons = AddonManager::read_remote_addons(addon_type)?;
+                AddonManager::write_addon_manifest(&addons,addon_type)?;
+                Ok(addons)
+            }
+        }
+    }
+    pub fn add_new_addons(addons:Vec<ProfileAddon>,addon_type: AddonType)->Result<(),InstallerError>{
+        AddonManager::insert_addons_into_manifest(addons.clone(),addon_type)?;
+        for addon in addons {
+            addon.upload(&addon.location).unwrap()
+        }
+        Ok(())
+    }
+    pub fn insert_addons_into_manifest(addon_list:Vec<ProfileAddon>, addon_type:AddonType) ->Result<(),InstallerError>{
+        let mut unique_list:Vec<ProfileAddon> = Vec::new();
+        let manifest_list = AddonManager::read_addon_manifest(addon_type)?;
+        for x in addon_list {
+            if !manifest_list.iter().any(|addon| addon.addon_matches(&x)){
+                unique_list.push(x);
+            }
+        }
+        let new_list = [unique_list,manifest_list].concat();
+        AddonManager::write_addon_manifest(&new_list,addon_type)?;
+        Ok(())
+    }
+    pub fn remove_addons_from_manifest(addon_list:Vec<ProfileAddon>, addon_type:AddonType) ->Result<(),InstallerError>{
+        let mut manifest_list = AddonManager::read_addon_manifest(addon_type)?.to_owned();
+        manifest_list.retain(|manifest_addon| !addon_list.iter().any(|target_addon| target_addon.addon_matches(manifest_addon)));
+        AddonManager::write_addon_manifest(&manifest_list,addon_type)?;
+        Ok(())
+    }
+    pub fn delete_addon(addon:ProfileAddon)->Result<(),InstallerError>{
+        let addons:Vec<ProfileAddon> = Vec::from([addon.clone()]);
+        let _ = addon.delete_remote();
+        AddonManager::remove_addons_from_manifest(addons,addon.addon_type)
+    }
+    pub fn delete_addons_manifest(addon_type: AddonType)->Result<(),InstallerError>{
+        Ok(fs::remove_file(addon_type.get_addon_manifest())?)
     }
 }
 
@@ -134,8 +210,17 @@ impl ProfileAddon{
             }
             Err(_) => {
                 _ = sftp.mkdir(pack_dir.as_path(),1002);
-                self.upload_addon(source,&pack_dir,&sftp)?;
-                self.update_addon_pack(pack_dir,&sftp)?;
+                match &self.file_name.as_str().eq(source.file_name().unwrap().to_str().unwrap()){
+                    true => {
+                        self.upload_addon(source,&pack_dir,&sftp)?;
+                        self.update_addon_pack(pack_dir,&sftp)?;
+                    },
+                    false=>{
+                        self.upload_addon(&source.join(&self.file_name),&pack_dir,&sftp)?;
+                        self.update_addon_pack(pack_dir,&sftp)?;
+                    }
+                }
+
             }
         }
         Ok(())
@@ -147,7 +232,7 @@ impl ProfileAddon{
         Ok(())
     }
     pub fn upload_addon(&self,source:&PathBuf,dest:&PathBuf,sftp:&Sftp) ->Result<(),InstallerError>{
-        let mut upload_file = fs::File::open(source.join(&self.file_name))?;
+        let mut upload_file = fs::File::open(source)?;
         let mut remote_file = sftp.create(dest.join(&self.file_name).as_path())?;
         io::copy(&mut upload_file, &mut remote_file)?;
         Ok(())
@@ -168,6 +253,18 @@ impl ProfileAddon{
         let pack_dir= &self.addon_type.get_remote_dir().join(&self.name);
         self.update_addon_pack(pack_dir,&sftp)
 
+    }
+    pub fn delete_remote(&self)->Result<(),InstallerError>{
+        let sftp = InstallerConfig::open().unwrap().sftp_safe_connect()?;
+        let pack_dir= &self.addon_type.get_remote_dir().join(&self.name);
+        dbg!(&pack_dir);
+        sftp_remove_dir(pack_dir,&sftp)
+    }
+    pub fn addon_matches(&self,addon:&Self)->bool{
+        self.name == addon.name
+    }
+    pub fn addon_matches_name(&self,addon_name:&str)->bool{
+        self.name == addon_name
     }
 }
 
@@ -219,7 +316,7 @@ mod tests{
     // }
     #[test]
     fn test_read_remote_addons(){
-        let result = AddonManager::read_remote_addon(AddonType::Mod);
+        let result = AddonManager::read_remote_addons(AddonType::ResourcePack);
         assert!(result.is_ok());
         let vec = result.unwrap();
         dbg!(vec);
@@ -237,12 +334,67 @@ mod tests{
         assert!(result.is_ok());
     }
     #[test]
+    fn test_upload_new_resourcepack(){
+        let installer_config = InstallerConfig::open().unwrap();
+        let source = PathBuf::from(installer_config.default_game_dir.unwrap().join("profiles").join("new_profile"));
+        File::create(source.join("mods").join("optifine.jar")).expect("Could not create mod");
+        let mut rp = ProfileAddon::new("colorful containers",AddonType::ResourcePack);
+        rp.location = "C:\\Users\\Jeremy\\Downloads\\colourful containers.zip".parse().unwrap();
+        rp.file_name= "colourful containers.zip".parse().unwrap();
+        let result = rp.upload(&rp.location);
+        dbg!(&result);
+        assert!(result.is_ok());
+    }
+    #[test]
     fn test_download_mod(){
         let installer_config = InstallerConfig::open().unwrap();
-        let profile_path = PathBuf::from(installer_config.default_game_dir.unwrap().join("profiles").join("new_profile"));
         let rp = ProfileAddon::new("optifine.jar",AddonType::Mod);
-        let result = rp.download(&profile_path);
+        let result = rp.download(&rp.addon_type.get_local_dir("new_profile").unwrap());
+        assert!(result.is_ok());
+    }
+    #[test]
+    fn test_install_addon(){
+        let installer_config = InstallerConfig::open().unwrap();
+        let rp = ProfileAddon::new("optifine.jar",AddonType::Mod);
+        let result = rp.download(&rp.addon_type.get_local_dir("new_profile").unwrap());
+        assert!(result.is_ok());
+    }
+    #[test]
+    #[serial]
+    fn test_read_addon_manifest(){
+        let result = AddonManager::read_addon_manifest(AddonType::ResourcePack);
+        assert!(result.is_ok())
+    }
+    #[test]
+    #[serial]
+    fn test_write_addon_manifest(){
+        let result = AddonManager::write_addon_manifest(&AddonManager::read_remote_addons(AddonType::ResourcePack).unwrap(), AddonType::ResourcePack);
+        assert!(result.is_ok());
+    }
+    #[test]
+    #[serial]
+    fn test_insert_addon_manifest(){
+        let addon_type = AddonType::ResourcePack;
+        let test_addon = ProfileAddon::new("hee haa",addon_type);
+
+        let result = AddonManager::insert_addons_into_manifest(Vec::from([ProfileAddon::new("hee haa", addon_type)]), addon_type);
         assert!(result.is_ok());
 
+        let manifest = AddonManager::read_addon_manifest(addon_type).unwrap();
+        assert!(&manifest.iter().any(|addon| addon.addon_matches(&test_addon)));
+
+        AddonManager::remove_addons_from_manifest(Vec::from([ProfileAddon::new("hee haa", addon_type)]), addon_type).unwrap();
+    }
+
+    #[test]
+    #[serial]
+    fn test_remove_addon_manifest(){
+        let addon_type = AddonType::ResourcePack;
+        let test_addon = ProfileAddon::new("hee haa",addon_type);
+        let _ = AddonManager::insert_addons_into_manifest(Vec::from([test_addon.clone()]), addon_type);
+        let result = AddonManager::remove_addons_from_manifest(Vec::from([test_addon.clone()]), addon_type);
+        assert!(&result.is_ok());
+        let manifest = AddonManager::read_addon_manifest(addon_type).unwrap();
+        assert!(!&manifest.iter().any(|addon| addon.addon_matches(&test_addon)))
     }
 }

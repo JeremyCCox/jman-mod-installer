@@ -10,7 +10,7 @@ export default function MinecraftFinder({osType}:{osType:string}){
     const listProfiles= async () => {
         await invoke("read_sftp_dir", {path:"/profiles/"})
     }
-    const pathInfo = useQuery("defaultPath",async ():Promise<{defaultPath:string,readPath:FileEntry[],minecraftExists:boolean}> => {
+    const pathInfo = useQuery("defaultPath",async ():Promise<{dataPath:string,defaultPath:string,readPath:FileEntry[],minecraftExists:boolean}> => {
         let defaultPath = "";
         switch(osType){
             case('Linux'):
@@ -25,8 +25,8 @@ export default function MinecraftFinder({osType}:{osType:string}){
         }
         let readPath = await readDir(defaultPath+".minecraft")
         let minecraftExists = await exists(defaultPath+".minecraft")
-        return({defaultPath:defaultPath+".minecraft",readPath,minecraftExists})
-    },{initialData:{defaultPath:"",readPath:[],minecraftExists:false}})
+        return({dataPath:defaultPath,defaultPath:defaultPath+".minecraft",readPath,minecraftExists})
+    },{initialData:{dataPath:"",defaultPath:"",readPath:[],minecraftExists:false}})
 
     return(
         <>

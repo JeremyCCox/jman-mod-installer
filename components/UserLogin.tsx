@@ -9,9 +9,9 @@ export default function UserLogin({handleSubmit,loading,config}:{handleSubmit:an
     const [port, setPort] = useState(config?.sftpPort||"")
 
     return(
-        <div className={'text-center m-auto w-80'}>
+        <div className={'text-center w-96 mx-auto  overflow-y-auto '}>
             <form onSubmit={handleSubmit} className={'grid'}>
-                <input type={'text'} name={'sftpUsername'} autoComplete={"username"} value={username} className={"py-3 my-2 "} placeholder={"username"} onChange={(e)=>{setUsername(e.currentTarget.value)}}/>
+                <input type={'text'} name={'sftpUsername'} autoComplete={"username"} value={username} className={"py-3 mb-2 "} placeholder={"username"} onChange={(e)=>{setUsername(e.currentTarget.value)}}/>
                 <input type={'password'} name={'sftpPassword'} autoComplete={"current-password"} className={"py-3 my-2 "} placeholder={"password"} />
                 <div className={"flex w-full"}>
                     <input type={'text'} name={"sftpServer"} className={"py-3 my-2 grow "} placeholder={"Profile Server"} value={server} onChange={(e)=>{setServer(e.currentTarget.value)}}/>

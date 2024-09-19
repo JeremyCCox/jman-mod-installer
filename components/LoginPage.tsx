@@ -22,12 +22,12 @@ export default function LoginPage(){
         })
     }
     return(
-        <>
+        <div className={'h-screen flex items-center'}>
             {config.configQuery.isLoading?
                 <LoadingSpinner/>
                 :
                     <UserLogin handleSubmit={handleSubmit} loading={loading} config={config.configQuery.data}/>
             }
-        </>
+        </div>
     )
 }
