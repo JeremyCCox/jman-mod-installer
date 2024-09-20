@@ -2,6 +2,8 @@ import {useConfig} from "./contextHooks/configContext.tsx";
 import GameDir from "./GameDir.tsx";
 import LoadingSpinner from "./LoadingSpinner.tsx";
 import {FormEvent, useState} from "react";
+import { getVersion } from '@tauri-apps/api/app';
+import {useQuery} from "react-query";
 
 export default function Settings(){
     const config = useConfig();
@@ -10,11 +12,16 @@ export default function Settings(){
     const [server, setServer] = useState(config?.configQuery.data?.sftpServer||"")
     const [port, setPort] = useState(config?.configQuery.data?.sftpPort||"")
 
+    const versionQuery = useQuery(["app-version"],async () => {
+        return await getVersion()
+    })
+
     const handleSubmit = async (e: FormEvent<HTMLFormElement>)=>{
         console.log(e)
     }
     return(
-        <div className={'flex justify-center items-center h-[80vh] p-20'}>
+        <div className={'flex flex-col justify-center items-center h-[80vh] p-20'}>
+
             <form onSubmit={handleSubmit} className={'grid h-full '}>
                 <input type={'text'} name={'sftpUsername'} autoComplete={"username"} value={username} placeholder={"username"} onChange={(e)=>{setUsername(e.currentTarget.value)}}/>
                 <input type={'password'} name={'sftpPassword'} autoComplete={"current-password"} placeholder={"password"} />
@@ -27,6 +34,20 @@ export default function Settings(){
                     {loading?<LoadingSpinner/>:"Save Settings"}
                 </button>
             </form>
+            <div className={'w-full flex justify-evenly '}>
+                <span>
+                    App version:
+                </span>
+                {
+                    versionQuery.isLoading?
+                        <LoadingSpinner/>
+                        :
+                        versionQuery.data&&
+                            <span>
+                                v{versionQuery.data}
+                            </span>
+                }
+            </div>
         </div>
     )
 }
