@@ -58,6 +58,9 @@ jobs:
           export OPENSSL_LIB_DIR="/opt/homebrew/opt/openssl@3/3.3.2/lib"
           export OPENSSL_INCLUDE_DIR="/opt/homebrew/opt/openssl@3/3.3.2/include"
           export PKG_CONFIG_PATH="/opt/homebrew/opt/openssl@3/3.3.2/lib/pkgconfig"
+          export PKG_CONFIG_SYSROOT_DIR="/opt/homebrew/opt/openssl@3/3.3.2"
+          pkg-config --libs openssl
+          pkg-config --cflags openssl
         # webkitgtk 4.0 is for Tauri v1 - webkitgtk 4.1 is for Tauri v2.
         # You can remove the one that doesn't apply to your app to speed up the workflow a bit.
 
