@@ -53,18 +53,11 @@ jobs:
       - name: install dependencies (intel macos only)
         if: matrix.platform == 'macos-latest' && 'x86_64-apple-darwin' # This must match the platform value defined above.
         run: |
-          echo $OPENSSL_DIR
-          echo $OPENSSL_LIB_DIR
-          echo $OPENSSL_INCLUDE_DIR
-          echo $PKG_CONFIG_PATH
+          brew install pkg-config
           export OPENSSL_DIR="/opt/homebrew/opt/openssl@3/3.3.2"
           export OPENSSL_LIB_DIR="/opt/homebrew/opt/openssl@3/3.3.2/lib"
           export OPENSSL_INCLUDE_DIR="/opt/homebrew/opt/openssl@3/3.3.2/include"
           export PKG_CONFIG_PATH="/opt/homebrew/opt/openssl@3/3.3.2/lib/pkgconfig"
-          echo $OPENSSL_DIR
-          echo $OPENSSL_LIB_DIR
-          echo $OPENSSL_INCLUDE_DIR
-          echo $PKG_CONFIG_PATH
         # webkitgtk 4.0 is for Tauri v1 - webkitgtk 4.1 is for Tauri v2.
         # You can remove the one that doesn't apply to your app to speed up the workflow a bit.
 
